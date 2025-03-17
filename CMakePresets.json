@@ -1,0 +1,52 @@
+{
+  "version": 8,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "inherits": "base",
+      "name": "Debug",
+      "displayName": "Debug",
+      "description": "Default Debug build configuration.",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_COVERAGE": "OFF",
+        "ENABLE_UNITY_BUILD": "OFF",
+        "ENABLE_BUILDIN_TEST": "ON"
+      }
+    },
+    {
+      "inherits": "Debug",
+      "name": "Coverage",
+      "displayName": "Coverage",
+      "description": "Default Coverage build configuration.",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENABLE_COVERAGE": "ON",
+        "ENABLE_UNITY_BUILD": "OFF",
+        "ENABLE_BUILDIN_TEST": "ON"
+      }
+    },
+    {
+      "inherits": "base",
+      "name": "Release",
+      "displayName": "Release",
+      "description": "Default Release build configuration.",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_UNITY_BUILD": "ON"
+      }
+    }
+  ]
+}

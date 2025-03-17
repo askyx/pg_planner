@@ -1,0 +1,111 @@
+select query from tpch_queries(3); \gset
+                          query                          
+---------------------------------------------------------
+ SELECT                                                 +
+     l_orderkey,                                        +
+     sum(l_extendedprice * (1 - l_discount)) AS revenue,+
+     o_orderdate,                                       +
+     o_shippriority                                     +
+ FROM                                                   +
+     customer,                                          +
+     orders,                                            +
+     lineitem                                           +
+ WHERE                                                  +
+     c_mktsegment = 'BUILDING'                          +
+     AND c_custkey = o_custkey                          +
+     AND l_orderkey = o_orderkey                        +
+     AND o_orderdate < CAST('1995-03-15' AS date)       +
+     AND l_shipdate > CAST('1995-03-15' AS date)        +
+ GROUP BY                                               +
+     l_orderkey,                                        +
+     o_orderdate,                                       +
+     o_shippriority                                     +
+ ORDER BY                                               +
+     revenue DESC,                                      +
+     o_orderdate                                        +
+ LIMIT 10;                                              +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(3);
+                 transform_query                  
+--------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL+
+ └── LogicalGbAgg                                +
+     └── LogicalJoin: INNER                      +
+         ├── LogicalJoin: INNER                  +
+         │   ├── LogicalGet                      +
+         │   └── LogicalGet                      +
+         └── LogicalGet                          +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                       QUERY PLAN                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..100.00 rows=1000 width=8)
+   Output: lineitem.l_orderkey, (sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)))), orders.o_orderdate, orders.o_shippriority
+   ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+         Output: lineitem.l_orderkey, sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount))), orders.o_orderdate, orders.o_shippriority
+         Group Key: lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority
+         ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+               Output: lineitem.l_discount, lineitem.l_extendedprice, orders.o_orderdate, lineitem.l_orderkey, orders.o_shippriority
+               Join Filter: (lineitem.l_orderkey = orders.o_orderkey)
+               ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: orders.o_shippriority, orders.o_orderdate, orders.o_orderkey
+                     Join Filter: (customer.c_custkey = orders.o_custkey)
+                     ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: customer.c_custkey
+                           Filter: (customer.c_mktsegment = 'BUILDING'::bpchar)
+                     ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: orders.o_custkey, orders.o_shippriority, orders.o_orderdate, orders.o_orderkey
+                           Filter: (orders.o_orderdate < '03-15-1995'::date)
+               ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: lineitem.l_discount, lineitem.l_extendedprice, lineitem.l_orderkey
+                     Filter: (lineitem.l_shipdate > '03-15-1995'::date)
+ Optimizer: PGP
+(21 rows)
+
+:query
+ l_orderkey | revenue | o_orderdate | o_shippriority 
+------------+---------+-------------+----------------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                             QUERY PLAN                                                                                                                                                                                             
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=20.78..20.79 rows=1 width=44)
+   Output: lineitem.l_orderkey, (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))), orders.o_orderdate, orders.o_shippriority
+   ->  Sort  (cost=20.78..20.79 rows=1 width=44)
+         Output: lineitem.l_orderkey, (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))), orders.o_orderdate, orders.o_shippriority
+         Sort Key: (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))) DESC, orders.o_orderdate
+         ->  GroupAggregate  (cost=20.74..20.77 rows=1 width=44)
+               Output: lineitem.l_orderkey, sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount))), orders.o_orderdate, orders.o_shippriority
+               Group Key: lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority
+               ->  Sort  (cost=20.74..20.74 rows=1 width=48)
+                     Output: lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority, lineitem.l_extendedprice, lineitem.l_discount
+                     Sort Key: lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority
+                     ->  Nested Loop  (cost=0.29..20.73 rows=1 width=48)
+                           Output: lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority, lineitem.l_extendedprice, lineitem.l_discount
+                           ->  Nested Loop  (cost=0.14..19.93 rows=1 width=12)
+                                 Output: orders.o_orderdate, orders.o_shippriority, orders.o_orderkey
+                                 ->  Seq Scan on public.customer  (cost=0.00..11.75 rows=1 width=4)
+                                       Output: customer.c_custkey, customer.c_name, customer.c_address, customer.c_nationkey, customer.c_phone, customer.c_acctbal, customer.c_mktsegment, customer.c_comment
+                                       Filter: (customer.c_mktsegment = 'BUILDING'::bpchar)
+                                 ->  Index Scan using idx_orders_custkey on public.orders  (cost=0.14..8.16 rows=1 width=16)
+                                       Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                       Index Cond: (orders.o_custkey = customer.c_custkey)
+                                       Filter: (orders.o_orderdate < '03-15-1995'::date)
+                           ->  Index Scan using idx_lineitem_orderkey on public.lineitem  (cost=0.14..0.79 rows=1 width=40)
+                                 Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                                 Index Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                                 Filter: (lineitem.l_shipdate > '03-15-1995'::date)
+(26 rows)
+
+:query
+ l_orderkey | revenue | o_orderdate | o_shippriority 
+------------+---------+-------------+----------------
+(0 rows)
+

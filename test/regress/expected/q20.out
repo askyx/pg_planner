@@ -1,0 +1,150 @@
+select query from tpch_queries(20); \gset
+                                 query                                 
+-----------------------------------------------------------------------
+ SELECT                                                               +
+     s_name,                                                          +
+     s_address                                                        +
+ FROM                                                                 +
+     supplier,                                                        +
+     nation                                                           +
+ WHERE                                                                +
+     s_suppkey IN (                                                   +
+         SELECT                                                       +
+             ps_suppkey                                               +
+         FROM                                                         +
+             partsupp                                                 +
+         WHERE                                                        +
+             ps_partkey IN (                                          +
+                 SELECT                                               +
+                     p_partkey                                        +
+                 FROM                                                 +
+                     part                                             +
+                 WHERE                                                +
+                     p_name LIKE 'forest%')                           +
+                 AND ps_availqty > (                                  +
+                     SELECT                                           +
+                         0.5 * sum(l_quantity)                        +
+                     FROM                                             +
+                         lineitem                                     +
+                     WHERE                                            +
+                         l_partkey = ps_partkey                       +
+                         AND l_suppkey = ps_suppkey                   +
+                         AND l_shipdate >= CAST('1994-01-01' AS date) +
+                         AND l_shipdate < CAST('1995-01-01' AS date)))+
+             AND s_nationkey = n_nationkey                            +
+             AND n_name = 'CANADA'                                    +
+         ORDER BY                                                     +
+             s_name;                                                  +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(20);
+            transform_query            
+---------------------------------------
+ LogicalApply: ANY_SUBLINK            +
+ ├── LogicalJoin: INNER               +
+ │   ├── LogicalGet                   +
+ │   └── LogicalGet                   +
+ └── LogicalSelect                    +
+     └── LogicalApply: EXPR_SUBLINK   +
+         ├── LogicalApply: ANY_SUBLINK+
+         │   ├── LogicalGet           +
+         │   └── LogicalSelect        +
+         │       └── LogicalGet       +
+         └── LogicalGbAgg             +
+             └── LogicalSelect        +
+                 └── LogicalGet       +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                                         QUERY PLAN                                                                                                         
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Result  (cost=0.00..0.00 rows=0 width=0)
+   Output: supplier.s_name, supplier.s_address
+   Filter: (ANY (supplier.s_suppkey = (SubPlan 3).col1))
+   ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+         Output: supplier.s_address, supplier.s_name, supplier.s_suppkey
+         Join Filter: (supplier.s_nationkey = nation.n_nationkey)
+         ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+               Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey
+               Sort Key: supplier.s_name
+               ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey
+         ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
+               Output: nation.n_nationkey
+               Filter: (nation.n_name = 'CANADA'::bpchar)
+   SubPlan 3
+     ->  Result  (cost=0.00..0.00 rows=0 width=0)
+           Output: partsupp.ps_suppkey
+           Filter: ("numeric"(partsupp.ps_availqty) > (SubPlan 2))
+           ->  Result  (cost=0.00..0.00 rows=0 width=0)
+                 Output: partsupp.ps_availqty, partsupp.ps_partkey, partsupp.ps_suppkey
+                 Filter: (ANY (partsupp.ps_partkey = (SubPlan 1).col1))
+                 ->  Seq Scan on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
+                       Output: partsupp.ps_suppkey, partsupp.ps_partkey, partsupp.ps_availqty
+                 SubPlan 1
+                   ->  Seq Scan on public.part  (cost=0.00..100.00 rows=1000 width=8)
+                         Output: part.p_partkey
+                         Filter: ((part.p_name)::text ~~ 'forest%'::text)
+           SubPlan 2
+             ->  Aggregate  (cost=0.00..100.00 rows=1000 width=8)
+                   Output: (0.5 * sum(lineitem.l_quantity))
+                   ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                         Output: lineitem.l_quantity
+                         Filter: ((lineitem.l_partkey = partsupp.ps_partkey) AND (lineitem.l_suppkey = partsupp.ps_suppkey) AND (lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date))
+ Optimizer: PGP
+(34 rows)
+
+:query
+ s_name | s_address 
+--------+-----------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                              QUERY PLAN                                                                                                                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=29.92..29.93 rows=1 width=202)
+   Output: supplier.s_name, supplier.s_address
+   Sort Key: supplier.s_name
+   ->  Nested Loop Semi Join  (cost=0.44..29.91 rows=1 width=202)
+         Output: supplier.s_name, supplier.s_address
+         ->  Nested Loop  (cost=0.14..20.30 rows=1 width=206)
+               Output: supplier.s_name, supplier.s_address, supplier.s_suppkey
+               ->  Seq Scan on public.nation  (cost=0.00..12.12 rows=1 width=4)
+                     Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                     Filter: (nation.n_name = 'CANADA'::bpchar)
+               ->  Index Scan using idx_supplier_nation_key on public.supplier  (cost=0.14..8.16 rows=1 width=210)
+                     Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                     Index Cond: (supplier.s_nationkey = nation.n_nationkey)
+         ->  Nested Loop  (cost=0.30..9.61 rows=1 width=4)
+               Output: partsupp.ps_suppkey
+               Inner Unique: true
+               ->  Index Scan using idx_partsupp_suppkey on public.partsupp  (cost=0.14..8.65 rows=1 width=8)
+                     Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                     Index Cond: (partsupp.ps_suppkey = supplier.s_suppkey)
+                     Filter: ((partsupp.ps_availqty)::numeric > (SubPlan 1))
+                     SubPlan 1
+                       ->  Aggregate  (cost=8.17..8.19 rows=1 width=32)
+                             Output: (0.5 * sum(lineitem.l_quantity))
+                             ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.14..8.17 rows=1 width=18)
+                                   Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                                   Index Cond: ((lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date))
+                                   Filter: ((lineitem.l_partkey = partsupp.ps_partkey) AND (lineitem.l_suppkey = partsupp.ps_suppkey))
+               ->  Memoize  (cost=0.15..0.95 rows=1 width=4)
+                     Output: part.p_partkey
+                     Cache Key: partsupp.ps_partkey
+                     Cache Mode: logical
+                     ->  Index Scan using part_pkey on public.part  (cost=0.14..0.94 rows=1 width=4)
+                           Output: part.p_partkey
+                           Index Cond: (part.p_partkey = partsupp.ps_partkey)
+                           Filter: ((part.p_name)::text ~~ 'forest%'::text)
+(35 rows)
+
+:query
+ s_name | s_address 
+--------+-----------
+(0 rows)
+

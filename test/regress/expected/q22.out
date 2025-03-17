@@ -1,0 +1,124 @@
+select query from tpch_queries(22); \gset
+                                               query                                                
+----------------------------------------------------------------------------------------------------
+ SELECT                                                                                            +
+     cntrycode,                                                                                    +
+     count(*) AS numcust,                                                                          +
+     sum(c_acctbal) AS totacctbal                                                                  +
+ FROM (                                                                                            +
+     SELECT                                                                                        +
+         substring(c_phone FROM 1 FOR 2) AS cntrycode,                                             +
+         c_acctbal                                                                                 +
+     FROM                                                                                          +
+         customer                                                                                  +
+     WHERE                                                                                         +
+         substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')             +
+         AND c_acctbal > (                                                                         +
+             SELECT                                                                                +
+                 avg(c_acctbal)                                                                    +
+             FROM                                                                                  +
+                 customer                                                                          +
+             WHERE                                                                                 +
+                 c_acctbal > 0.00                                                                  +
+                 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17'))+
+             AND NOT EXISTS (                                                                      +
+                 SELECT                                                                            +
+                     *                                                                             +
+                 FROM                                                                              +
+                     orders                                                                        +
+                 WHERE                                                                             +
+                     o_custkey = c_custkey)) AS custsale                                           +
+ GROUP BY                                                                                          +
+     cntrycode                                                                                     +
+ ORDER BY                                                                                          +
+     cntrycode;                                                                                    +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(22);
+              transform_query               
+--------------------------------------------
+ LogicalGbAgg                              +
+ └── LogicalProject                        +
+     └── LogicalSelect                     +
+         └── LogicalApply: EXISTS_SUBLINK  +
+             ├── LogicalApply: EXPR_SUBLINK+
+             │   ├── LogicalGet            +
+             │   └── LogicalGbAgg          +
+             │       └── LogicalSelect     +
+             │           └── LogicalGet    +
+             └── LogicalSelect             +
+                 └── LogicalGet            +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                 QUERY PLAN                                                                                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: ("substring"(text(customer.c_phone), 1, 2)), count(), sum(customer.c_acctbal)
+   Group Key: ("substring"(text(customer.c_phone), 1, 2))
+   ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+         Output: ("substring"(text(customer.c_phone), 1, 2)), customer.c_acctbal
+         Sort Key: ("substring"(text(customer.c_phone), 1, 2))
+         ->  Result  (cost=0.00..100.00 rows=1000 width=8)
+               Output: "substring"(text(customer.c_phone), 1, 2), customer.c_acctbal
+               ->  Result  (cost=0.00..0.00 rows=0 width=0)
+                     Output: customer.c_acctbal, customer.c_phone
+                     Filter: (NOT EXISTS(SubPlan 2))
+                     ->  Result  (cost=0.00..0.00 rows=0 width=0)
+                           Output: customer.c_phone, customer.c_acctbal, customer.c_custkey
+                           Filter: (customer.c_acctbal > (SubPlan 1))
+                           ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: customer.c_custkey, customer.c_acctbal, customer.c_phone
+                                 Filter: ("substring"(text(customer.c_phone), 1, 2) = ANY ('{13,31,23,29,30,18,17}'::text[]))
+                           SubPlan 1
+                             ->  Aggregate  (cost=0.00..100.00 rows=1000 width=8)
+                                   Output: avg(customer_1.c_acctbal)
+                                   ->  Seq Scan on public.customer customer_1  (cost=0.00..100.00 rows=1000 width=8)
+                                         Output: customer_1.c_acctbal
+                                         Filter: ((customer_1.c_acctbal > 0.00) AND ("substring"(text(customer_1.c_phone), 1, 2) = ANY ('{13,31,23,29,30,18,17}'::text[])))
+                     SubPlan 2
+                       ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                             Output: orders.o_orderkey
+                             Filter: (orders.o_custkey = customer.c_custkey)
+ Optimizer: PGP
+(28 rows)
+
+:query
+ cntrycode | numcust | totacctbal 
+-----------+---------+------------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                               QUERY PLAN                                                                                               
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=37.58..37.61 rows=1 width=72)
+   Output: (SUBSTRING(customer.c_phone FROM 1 FOR 2)), count(*), sum(customer.c_acctbal)
+   Group Key: (SUBSTRING(customer.c_phone FROM 1 FOR 2))
+   InitPlan 1
+     ->  Aggregate  (cost=13.68..13.69 rows=1 width=32)
+           Output: avg(customer_1.c_acctbal)
+           ->  Seq Scan on public.customer customer_1  (cost=0.00..13.68 rows=2 width=18)
+                 Output: customer_1.c_custkey, customer_1.c_name, customer_1.c_address, customer_1.c_nationkey, customer_1.c_phone, customer_1.c_acctbal, customer_1.c_mktsegment, customer_1.c_comment
+                 Filter: ((customer_1.c_acctbal > 0.00) AND (SUBSTRING(customer_1.c_phone FROM 1 FOR 2) = ANY ('{13,31,23,29,30,18,17}'::text[])))
+   ->  Sort  (cost=23.89..23.89 rows=1 width=50)
+         Output: (SUBSTRING(customer.c_phone FROM 1 FOR 2)), customer.c_acctbal
+         Sort Key: (SUBSTRING(customer.c_phone FROM 1 FOR 2))
+         ->  Nested Loop Anti Join  (cost=0.14..23.88 rows=1 width=50)
+               Output: SUBSTRING(customer.c_phone FROM 1 FOR 2), customer.c_acctbal
+               ->  Seq Scan on public.customer  (cost=0.00..13.68 rows=2 width=86)
+                     Output: customer.c_custkey, customer.c_name, customer.c_address, customer.c_nationkey, customer.c_phone, customer.c_acctbal, customer.c_mktsegment, customer.c_comment
+                     Filter: ((customer.c_acctbal > (InitPlan 1).col1) AND (SUBSTRING(customer.c_phone FROM 1 FOR 2) = ANY ('{13,31,23,29,30,18,17}'::text[])))
+               ->  Index Only Scan using idx_orders_custkey on public.orders  (cost=0.14..6.16 rows=1 width=4)
+                     Output: orders.o_custkey
+                     Index Cond: (orders.o_custkey = customer.c_custkey)
+(20 rows)
+
+:query
+ cntrycode | numcust | totacctbal 
+-----------+---------+------------
+(0 rows)
+

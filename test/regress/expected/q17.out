@@ -1,0 +1,100 @@
+select query from tpch_queries(17); \gset
+                    query                     
+----------------------------------------------
+ SELECT                                      +
+     sum(l_extendedprice) / 7.0 AS avg_yearly+
+ FROM                                        +
+     lineitem,                               +
+     part                                    +
+ WHERE                                       +
+     p_partkey = l_partkey                   +
+     AND p_brand = 'Brand#23'                +
+     AND p_container = 'MED BOX'             +
+     AND l_quantity < (                      +
+         SELECT                              +
+             0.2 * avg(l_quantity)           +
+         FROM                                +
+             lineitem                        +
+         WHERE                               +
+             l_partkey = p_partkey);         +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(17);
+        transform_query         
+--------------------------------
+ LogicalGbAgg                  +
+ └── LogicalApply: EXPR_SUBLINK+
+     ├── LogicalJoin: INNER    +
+     │   ├── LogicalGet        +
+     │   └── LogicalGet        +
+     └── LogicalGbAgg          +
+         └── LogicalSelect     +
+             └── LogicalGet    +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: (sum(lineitem.l_extendedprice) / 7.0)
+   ->  Result  (cost=0.00..0.00 rows=0 width=0)
+         Output: lineitem.l_extendedprice
+         Filter: (lineitem.l_quantity < (SubPlan 1))
+         ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+               Output: lineitem.l_extendedprice, lineitem.l_quantity, part.p_partkey
+               Join Filter: (part.p_partkey = lineitem.l_partkey)
+               ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_partkey
+               ->  Seq Scan on public.part  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: part.p_partkey
+                     Filter: ((part.p_brand = 'Brand#23'::bpchar) AND (part.p_container = 'MED BOX'::bpchar))
+         SubPlan 1
+           ->  Aggregate  (cost=0.00..100.00 rows=1000 width=8)
+                 Output: (0.2 * avg(lineitem_1.l_quantity))
+                 ->  Seq Scan on public.lineitem lineitem_1  (cost=0.00..100.00 rows=1000 width=8)
+                       Output: lineitem_1.l_quantity
+                       Filter: (lineitem_1.l_partkey = part.p_partkey)
+ Optimizer: PGP
+(20 rows)
+
+:query
+ avg_yearly 
+------------
+           
+(1 row)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                                        QUERY PLAN                                                                                                                                                                                                        
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=24.94..24.96 rows=1 width=32)
+   Output: (sum(lineitem.l_extendedprice) / 7.0)
+   ->  Hash Join  (cost=12.41..24.94 rows=1 width=18)
+         Output: lineitem.l_extendedprice
+         Inner Unique: true
+         Hash Cond: (lineitem.l_partkey = part.p_partkey)
+         Join Filter: (lineitem.l_quantity < (SubPlan 1))
+         ->  Seq Scan on public.lineitem  (cost=0.00..12.00 rows=200 width=40)
+               Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+         ->  Hash  (cost=12.40..12.40 rows=1 width=4)
+               Output: part.p_partkey
+               ->  Seq Scan on public.part  (cost=0.00..12.40 rows=1 width=4)
+                     Output: part.p_partkey
+                     Filter: ((part.p_brand = 'Brand#23'::bpchar) AND (part.p_container = 'MED BOX'::bpchar))
+         SubPlan 1
+           ->  Aggregate  (cost=8.17..8.18 rows=1 width=32)
+                 Output: (0.2 * avg(lineitem_1.l_quantity))
+                 ->  Index Scan using idx_lineitem_part_supp on public.lineitem lineitem_1  (cost=0.14..8.16 rows=1 width=18)
+                       Output: lineitem_1.l_orderkey, lineitem_1.l_partkey, lineitem_1.l_suppkey, lineitem_1.l_linenumber, lineitem_1.l_quantity, lineitem_1.l_extendedprice, lineitem_1.l_discount, lineitem_1.l_tax, lineitem_1.l_returnflag, lineitem_1.l_linestatus, lineitem_1.l_shipdate, lineitem_1.l_commitdate, lineitem_1.l_receiptdate, lineitem_1.l_shipinstruct, lineitem_1.l_shipmode, lineitem_1.l_comment
+                       Index Cond: (lineitem_1.l_partkey = part.p_partkey)
+(20 rows)
+
+:query
+ avg_yearly 
+------------
+           
+(1 row)
+

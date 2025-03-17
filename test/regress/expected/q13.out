@@ -1,0 +1,96 @@
+select query from tpch_queries(13); \gset
+                        query                        
+-----------------------------------------------------
+ SELECT                                             +
+     c_count,                                       +
+     count(*) AS custdist                           +
+ FROM (                                             +
+     SELECT                                         +
+         c_custkey,                                 +
+         count(o_orderkey)                          +
+     FROM                                           +
+         customer                                   +
+     LEFT OUTER JOIN orders ON c_custkey = o_custkey+
+     AND o_comment NOT LIKE '%special%requests%'    +
+ GROUP BY                                           +
+     c_custkey) AS c_orders (c_custkey,             +
+         c_count)                                   +
+ GROUP BY                                           +
+     c_count                                        +
+ ORDER BY                                           +
+     custdist DESC,                                 +
+     c_count DESC;                                  +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(13);
+      transform_query      
+---------------------------
+ LogicalGbAgg             +
+ └── LogicalGbAgg         +
+     └── LogicalJoin: LEFT+
+         ├── LogicalGet   +
+         └── LogicalGet   +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: (count(orders.o_orderkey)), count()
+   Group Key: count(orders.o_orderkey)
+   ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+         Output: count(orders.o_orderkey)
+         Group Key: customer.c_custkey
+         ->  Nested Loop Left Join  (cost=0.00..100.00 rows=1000 width=8)
+               Output: orders.o_orderkey, customer.c_custkey
+               Join Filter: (customer.c_custkey = orders.o_custkey)
+               ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: customer.c_custkey
+                     Sort Key: customer.c_custkey COLLATE "default"
+                     ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: customer.c_custkey
+               ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: orders.o_custkey, orders.o_orderkey
+                     Filter: ((orders.o_comment)::text !~~ '%special%requests%'::text)
+ Optimizer: PGP
+(18 rows)
+
+:query
+ c_count | custdist 
+---------+----------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                      QUERY PLAN                                                                                                       
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=36.96..37.31 rows=140 width=16)
+   Output: (count(orders.o_orderkey)), (count(*))
+   Sort Key: (count(*)) DESC, (count(orders.o_orderkey)) DESC
+   ->  HashAggregate  (cost=30.57..31.97 rows=140 width=16)
+         Output: (count(orders.o_orderkey)), count(*)
+         Group Key: count(orders.o_orderkey)
+         ->  HashAggregate  (cost=27.07..28.47 rows=140 width=12)
+               Output: customer.c_custkey, count(orders.o_orderkey)
+               Group Key: customer.c_custkey
+               ->  Hash Right Join  (cost=13.15..26.34 rows=147 width=8)
+                     Output: customer.c_custkey, orders.o_orderkey
+                     Inner Unique: true
+                     Hash Cond: (orders.o_custkey = customer.c_custkey)
+                     ->  Seq Scan on public.orders  (cost=0.00..12.62 rows=210 width=8)
+                           Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                           Filter: ((orders.o_comment)::text !~~ '%special%requests%'::text)
+                     ->  Hash  (cost=11.40..11.40 rows=140 width=4)
+                           Output: customer.c_custkey
+                           ->  Seq Scan on public.customer  (cost=0.00..11.40 rows=140 width=4)
+                                 Output: customer.c_custkey
+(20 rows)
+
+:query
+ c_count | custdist 
+---------+----------
+(0 rows)
+

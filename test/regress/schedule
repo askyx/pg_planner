@@ -1,0 +1,24 @@
+test: test_setup
+
+test: q1
+test: q2
+test: q3
+test: q4
+test: q5
+test: q6
+test: q7
+test: q8
+test: q9
+test: q10
+test: q11
+test: q12
+test: q13
+test: q14
+test: q15
+test: q16
+test: q17
+test: q18
+test: q19
+test: q20
+test: q21
+test: q22

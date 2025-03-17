@@ -1,0 +1,132 @@
+select query from tpch_queries(10); \gset
+                          query                          
+---------------------------------------------------------
+ SELECT                                                 +
+     c_custkey,                                         +
+     c_name,                                            +
+     sum(l_extendedprice * (1 - l_discount)) AS revenue,+
+     c_acctbal,                                         +
+     n_name,                                            +
+     c_address,                                         +
+     c_phone,                                           +
+     c_comment                                          +
+ FROM                                                   +
+     customer,                                          +
+     orders,                                            +
+     lineitem,                                          +
+     nation                                             +
+ WHERE                                                  +
+     c_custkey = o_custkey                              +
+     AND l_orderkey = o_orderkey                        +
+     AND o_orderdate >= CAST('1993-10-01' AS date)      +
+     AND o_orderdate < CAST('1994-01-01' AS date)       +
+     AND l_returnflag = 'R'                             +
+     AND c_nationkey = n_nationkey                      +
+ GROUP BY                                               +
+     c_custkey,                                         +
+     c_name,                                            +
+     c_acctbal,                                         +
+     c_phone,                                           +
+     n_name,                                            +
+     c_address,                                         +
+     c_comment                                          +
+ ORDER BY                                               +
+     revenue DESC                                       +
+ LIMIT 20;                                              +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(10);
+                 transform_query                  
+--------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL+
+ └── LogicalGbAgg                                +
+     └── LogicalJoin: INNER                      +
+         ├── LogicalJoin: INNER                  +
+         │   ├── LogicalJoin: INNER              +
+         │   │   ├── LogicalGet                  +
+         │   │   └── LogicalGet                  +
+         │   └── LogicalGet                      +
+         └── LogicalGet                          +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                                        QUERY PLAN                                                                                                        
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..100.00 rows=1000 width=8)
+   Output: customer.c_custkey, customer.c_name, (sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)))), customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment
+   ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+         Output: customer.c_custkey, customer.c_name, sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount))), customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment
+         Group Key: customer.c_custkey, customer.c_name, customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment
+         ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+               Output: nation.n_name, customer.c_comment, customer.c_phone, customer.c_name, lineitem.l_discount, lineitem.l_extendedprice, customer.c_address, customer.c_acctbal, customer.c_custkey
+               Join Filter: (customer.c_nationkey = nation.n_nationkey)
+               ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: customer.c_custkey, lineitem.l_extendedprice, customer.c_acctbal, lineitem.l_discount, customer.c_name, customer.c_phone, customer.c_comment, customer.c_address, customer.c_nationkey
+                     Join Filter: (lineitem.l_orderkey = orders.o_orderkey)
+                     ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: customer.c_nationkey, customer.c_address, orders.o_orderkey, customer.c_comment, customer.c_phone, customer.c_name, customer.c_acctbal, customer.c_custkey
+                           Join Filter: (customer.c_custkey = orders.o_custkey)
+                           ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: customer.c_custkey, customer.c_acctbal, customer.c_name, customer.c_phone, customer.c_comment, customer.c_address, customer.c_nationkey
+                           ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: orders.o_custkey, orders.o_orderkey
+                                 Filter: ((orders.o_orderdate >= '10-01-1993'::date) AND (orders.o_orderdate < '01-01-1994'::date))
+                     ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: lineitem.l_orderkey, lineitem.l_extendedprice, lineitem.l_discount
+                           Filter: (lineitem.l_returnflag = 'R'::bpchar)
+               ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: nation.n_name, nation.n_nationkey
+ Optimizer: PGP
+(25 rows)
+
+:query
+ c_custkey | c_name | revenue | c_acctbal | n_name | c_address | c_phone | c_comment 
+-----------+--------+---------+-----------+--------+-----------+---------+-----------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                                QUERY PLAN                                                                                                                                                                                                
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25.15..25.15 rows=1 width=640)
+   Output: customer.c_custkey, customer.c_name, (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))), customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment
+   ->  Sort  (cost=25.15..25.15 rows=1 width=640)
+         Output: customer.c_custkey, customer.c_name, (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))), customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment
+         Sort Key: (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))) DESC
+         ->  GroupAggregate  (cost=25.11..25.14 rows=1 width=640)
+               Output: customer.c_custkey, customer.c_name, sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount))), customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment
+               Group Key: customer.c_custkey, nation.n_name
+               ->  Sort  (cost=25.11..25.11 rows=1 width=644)
+                     Output: customer.c_custkey, nation.n_name, customer.c_name, lineitem.l_extendedprice, lineitem.l_discount, customer.c_acctbal, customer.c_address, customer.c_phone, customer.c_comment
+                     Sort Key: customer.c_custkey, nation.n_name
+                     ->  Nested Loop  (cost=0.58..25.10 rows=1 width=644)
+                           Output: customer.c_custkey, nation.n_name, customer.c_name, lineitem.l_extendedprice, lineitem.l_discount, customer.c_acctbal, customer.c_address, customer.c_phone, customer.c_comment
+                           Inner Unique: true
+                           ->  Nested Loop  (cost=0.43..24.62 rows=1 width=544)
+                                 Output: customer.c_custkey, customer.c_name, customer.c_acctbal, customer.c_address, customer.c_phone, customer.c_comment, customer.c_nationkey, lineitem.l_extendedprice, lineitem.l_discount
+                                 ->  Nested Loop  (cost=0.29..16.44 rows=1 width=512)
+                                       Output: customer.c_custkey, customer.c_name, customer.c_acctbal, customer.c_address, customer.c_phone, customer.c_comment, customer.c_nationkey, orders.o_orderkey
+                                       Inner Unique: true
+                                       ->  Index Scan using idx_orders_orderdate on public.orders  (cost=0.14..8.16 rows=1 width=8)
+                                             Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                             Index Cond: ((orders.o_orderdate >= '10-01-1993'::date) AND (orders.o_orderdate < '01-01-1994'::date))
+                                       ->  Index Scan using customer_pkey on public.customer  (cost=0.14..8.16 rows=1 width=508)
+                                             Output: customer.c_custkey, customer.c_name, customer.c_address, customer.c_nationkey, customer.c_phone, customer.c_acctbal, customer.c_mktsegment, customer.c_comment
+                                             Index Cond: (customer.c_custkey = orders.o_custkey)
+                                 ->  Index Scan using idx_lineitem_orderkey on public.lineitem  (cost=0.14..8.16 rows=1 width=40)
+                                       Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                                       Index Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                                       Filter: (lineitem.l_returnflag = 'R'::bpchar)
+                           ->  Index Scan using nation_pkey on public.nation  (cost=0.14..0.48 rows=1 width=108)
+                                 Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                                 Index Cond: (nation.n_nationkey = customer.c_nationkey)
+(32 rows)
+
+:query
+ c_custkey | c_name | revenue | c_acctbal | n_name | c_address | c_phone | c_comment 
+-----------+--------+---------+-----------+--------+-----------+---------+-----------
+(0 rows)
+

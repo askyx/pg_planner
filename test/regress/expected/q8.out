@@ -1,0 +1,190 @@
+select query from tpch_queries(8); \gset
+                             query                             
+---------------------------------------------------------------
+ SELECT                                                       +
+     o_year,                                                  +
+     sum(                                                     +
+         CASE WHEN nation = 'BRAZIL' THEN                     +
+             volume                                           +
+         ELSE                                                 +
+             0                                                +
+         END) / sum(volume) AS mkt_share                      +
+ FROM (                                                       +
+     SELECT                                                   +
+         extract(year FROM o_orderdate) AS o_year,            +
+         l_extendedprice * (1 - l_discount) AS volume,        +
+         n2.n_name AS nation                                  +
+     FROM                                                     +
+         part,                                                +
+         supplier,                                            +
+         lineitem,                                            +
+         orders,                                              +
+         customer,                                            +
+         nation n1,                                           +
+         nation n2,                                           +
+         region                                               +
+     WHERE                                                    +
+         p_partkey = l_partkey                                +
+         AND s_suppkey = l_suppkey                            +
+         AND l_orderkey = o_orderkey                          +
+         AND o_custkey = c_custkey                            +
+         AND c_nationkey = n1.n_nationkey                     +
+         AND n1.n_regionkey = r_regionkey                     +
+         AND r_name = 'AMERICA'                               +
+         AND s_nationkey = n2.n_nationkey                     +
+         AND o_orderdate BETWEEN CAST('1995-01-01' AS date)   +
+         AND CAST('1996-12-31' AS date)                       +
+         AND p_type = 'ECONOMY ANODIZED STEEL') AS all_nations+
+ GROUP BY                                                     +
+     o_year                                                   +
+ ORDER BY                                                     +
+     o_year;                                                  +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(8);
+                  transform_query                   
+----------------------------------------------------
+ LogicalGbAgg                                      +
+ └── LogicalProject                                +
+     └── LogicalJoin: INNER                        +
+         ├── LogicalJoin: INNER                    +
+         │   ├── LogicalJoin: INNER                +
+         │   │   ├── LogicalJoin: INNER            +
+         │   │   │   ├── LogicalJoin: INNER        +
+         │   │   │   │   ├── LogicalJoin: INNER    +
+         │   │   │   │   │   ├── LogicalJoin: INNER+
+         │   │   │   │   │   │   ├── LogicalGet    +
+         │   │   │   │   │   │   └── LogicalGet    +
+         │   │   │   │   │   └── LogicalGet        +
+         │   │   │   │   └── LogicalGet            +
+         │   │   │   └── LogicalGet                +
+         │   │   └── LogicalGet                    +
+         │   └── LogicalGet                        +
+         └── LogicalGet                            +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                                                                     QUERY PLAN                                                                                                                                     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: ("extract"('year'::text, orders.o_orderdate)), (sum(CASE WHEN (n2.n_name = 'BRAZIL'::bpchar) THEN ((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount))) ELSE "numeric"(0) END) / sum(((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)))))
+   Group Key: ("extract"('year'::text, orders.o_orderdate))
+   ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+         Output: n2.n_name, ((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount))), ("extract"('year'::text, orders.o_orderdate))
+         Sort Key: ("extract"('year'::text, orders.o_orderdate))
+         ->  Result  (cost=0.00..100.00 rows=1000 width=8)
+               Output: n2.n_name, (lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)), "extract"('year'::text, orders.o_orderdate)
+               ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: n2.n_name, lineitem.l_extendedprice, orders.o_orderdate, lineitem.l_discount
+                     Join Filter: (n1.n_regionkey = region.r_regionkey)
+                     ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: lineitem.l_discount, orders.o_orderdate, lineitem.l_extendedprice, n1.n_regionkey, n2.n_name
+                           Join Filter: (supplier.s_nationkey = n2.n_nationkey)
+                           ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: n1.n_regionkey, lineitem.l_extendedprice, orders.o_orderdate, lineitem.l_discount, supplier.s_nationkey
+                                 Join Filter: (customer.c_nationkey = n1.n_nationkey)
+                                 ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                       Output: supplier.s_nationkey, lineitem.l_discount, orders.o_orderdate, lineitem.l_extendedprice, customer.c_nationkey
+                                       Join Filter: (orders.o_custkey = customer.c_custkey)
+                                       ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                             Output: lineitem.l_extendedprice, orders.o_orderdate, lineitem.l_discount, supplier.s_nationkey, orders.o_custkey
+                                             Join Filter: (lineitem.l_orderkey = orders.o_orderkey)
+                                             ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                                   Output: supplier.s_nationkey, lineitem.l_orderkey, lineitem.l_discount, lineitem.l_extendedprice
+                                                   Join Filter: ((part.p_partkey = lineitem.l_partkey) AND (supplier.s_suppkey = lineitem.l_suppkey))
+                                                   ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                                         Output: supplier.s_suppkey, part.p_partkey, supplier.s_nationkey
+                                                         Join Filter: true
+                                                         ->  Seq Scan on public.part  (cost=0.00..100.00 rows=1000 width=8)
+                                                               Output: part.p_partkey
+                                                               Filter: ((part.p_type)::text = 'ECONOMY ANODIZED STEEL'::text)
+                                                         ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                                                               Output: supplier.s_suppkey, supplier.s_nationkey
+                                                   ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                                                         Output: lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_orderkey, lineitem.l_discount, lineitem.l_extendedprice
+                                             ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                                                   Output: orders.o_orderdate, orders.o_orderkey, orders.o_custkey
+                                                   Filter: ((orders.o_orderdate >= '01-01-1995'::date) AND (orders.o_orderdate <= '12-31-1996'::date))
+                                       ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
+                                             Output: customer.c_custkey, customer.c_nationkey
+                                 ->  Seq Scan on public.nation n1  (cost=0.00..100.00 rows=1000 width=8)
+                                       Output: n1.n_nationkey, n1.n_regionkey
+                           ->  Seq Scan on public.nation n2  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: n2.n_nationkey, n2.n_name
+                     ->  Seq Scan on public.region  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: region.r_regionkey
+                           Filter: (region.r_name = 'AMERICA'::bpchar)
+ Optimizer: PGP
+(49 rows)
+
+:query
+ o_year | mkt_share 
+--------+-----------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                                         QUERY PLAN                                                                                                                                                                                                         
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=27.28..27.32 rows=1 width=64)
+   Output: (EXTRACT(year FROM orders.o_orderdate)), (sum(CASE WHEN (n2.n_name = 'BRAZIL'::bpchar) THEN (lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)) ELSE '0'::numeric END) / sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount))))
+   Group Key: (EXTRACT(year FROM orders.o_orderdate))
+   ->  Sort  (cost=27.28..27.28 rows=1 width=172)
+         Output: (EXTRACT(year FROM orders.o_orderdate)), n2.n_name, lineitem.l_extendedprice, lineitem.l_discount
+         Sort Key: (EXTRACT(year FROM orders.o_orderdate))
+         ->  Nested Loop  (cost=1.16..27.27 rows=1 width=172)
+               Output: EXTRACT(year FROM orders.o_orderdate), n2.n_name, lineitem.l_extendedprice, lineitem.l_discount
+               Inner Unique: true
+               ->  Nested Loop  (cost=1.01..26.56 rows=1 width=148)
+                     Output: lineitem.l_extendedprice, lineitem.l_discount, orders.o_orderdate, n1.n_regionkey, n2.n_name
+                     Inner Unique: true
+                     ->  Nested Loop  (cost=0.87..26.11 rows=1 width=48)
+                           Output: lineitem.l_extendedprice, lineitem.l_discount, supplier.s_nationkey, orders.o_orderdate, n1.n_regionkey
+                           Inner Unique: true
+                           ->  Nested Loop  (cost=0.72..25.62 rows=1 width=48)
+                                 Output: lineitem.l_extendedprice, lineitem.l_discount, supplier.s_nationkey, orders.o_orderdate, customer.c_nationkey
+                                 Inner Unique: true
+                                 ->  Nested Loop  (cost=0.58..17.35 rows=1 width=48)
+                                       Output: lineitem.l_extendedprice, lineitem.l_discount, supplier.s_nationkey, orders.o_orderdate, orders.o_custkey
+                                       Inner Unique: true
+                                       ->  Nested Loop  (cost=0.43..16.96 rows=1 width=48)
+                                             Output: lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_suppkey, orders.o_orderdate, orders.o_custkey
+                                             Inner Unique: true
+                                             ->  Nested Loop  (cost=0.29..16.34 rows=1 width=52)
+                                                   Output: lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_partkey, lineitem.l_suppkey, orders.o_orderdate, orders.o_custkey
+                                                   ->  Index Scan using idx_orders_orderdate on public.orders  (cost=0.14..8.16 rows=1 width=12)
+                                                         Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                                         Index Cond: ((orders.o_orderdate >= '01-01-1995'::date) AND (orders.o_orderdate <= '12-31-1996'::date))
+                                                   ->  Index Scan using idx_lineitem_orderkey on public.lineitem  (cost=0.14..8.16 rows=1 width=48)
+                                                         Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                                                         Index Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                                             ->  Index Scan using part_pkey on public.part  (cost=0.14..0.39 rows=1 width=4)
+                                                   Output: part.p_partkey, part.p_name, part.p_mfgr, part.p_brand, part.p_type, part.p_size, part.p_container, part.p_retailprice, part.p_comment
+                                                   Index Cond: (part.p_partkey = lineitem.l_partkey)
+                                                   Filter: ((part.p_type)::text = 'ECONOMY ANODIZED STEEL'::text)
+                                       ->  Index Scan using supplier_pkey on public.supplier  (cost=0.14..0.38 rows=1 width=8)
+                                             Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                             Index Cond: (supplier.s_suppkey = lineitem.l_suppkey)
+                                 ->  Index Scan using customer_pkey on public.customer  (cost=0.14..8.16 rows=1 width=8)
+                                       Output: customer.c_custkey, customer.c_name, customer.c_address, customer.c_nationkey, customer.c_phone, customer.c_acctbal, customer.c_mktsegment, customer.c_comment
+                                       Index Cond: (customer.c_custkey = orders.o_custkey)
+                           ->  Index Scan using nation_pkey on public.nation n1  (cost=0.14..0.48 rows=1 width=8)
+                                 Output: n1.n_nationkey, n1.n_name, n1.n_regionkey, n1.n_comment
+                                 Index Cond: (n1.n_nationkey = customer.c_nationkey)
+                     ->  Index Scan using nation_pkey on public.nation n2  (cost=0.14..0.46 rows=1 width=108)
+                           Output: n2.n_nationkey, n2.n_name, n2.n_regionkey, n2.n_comment
+                           Index Cond: (n2.n_nationkey = supplier.s_nationkey)
+               ->  Index Scan using region_pkey on public.region  (cost=0.14..0.42 rows=1 width=4)
+                     Output: region.r_regionkey, region.r_name, region.r_comment
+                     Index Cond: (region.r_regionkey = n1.n_regionkey)
+                     Filter: (region.r_name = 'AMERICA'::bpchar)
+(52 rows)
+
+:query
+ o_year | mkt_share 
+--------+-----------
+(0 rows)
+

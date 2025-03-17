@@ -1,0 +1,109 @@
+name: CI
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - LICENSE
+
+jobs:
+  build-and-test:
+    name: 'Build and test'
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [REL_17_BETA1]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Test details
+        run: echo Build and test extension with PostgreSQL ${{ matrix.version }} branch
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev \
+            libssl-dev libxml2-utils xsltproc pkg-config libc++-dev libc++abi-dev libglib2.0-dev libtinfo6 cmake \
+            libstdc++-12-dev g++-14 gcc-14 clang-18 meson wget ninja-build
+          echo "${PWD}/postgres/inst/bin:$PATH'" > $GITHUB_PATH
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ubuntu-24.04
+          create-symlink: true
+
+      - name: Checkout extension code
+        uses: actions/checkout@v4
+        with:
+          path: pg_planner
+
+      - name: Checkout PostgreSQL code
+        run: |
+          rm -rf postgres
+          git clone --branch ${{ matrix.version }} --single-branch --depth 1 https://github.com/postgres/postgres.git
+
+      - name: Checkout extension dependencies
+        run: |
+          rm -rf pg_tpch
+          git clone --single-branch --depth 1 https://github.com/askyx/pg_tpch.git
+
+      - name: Compute Version SHAs
+        id: versions
+        run: |
+          pushd postgres
+          POSTGRES_SHA=`git rev-parse HEAD`
+          echo "postgres_sha=${POSTGRES_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Got POSTGRES_SHA='${POSTGRES_SHA}'"
+
+      - name: Setup PG build cache
+        id: cache-pg-build
+        uses: actions/cache@v4
+        with:
+          path: postgres/inst
+          key: pg-build-ubuntu-24.04-${{ steps.versions.outputs.postgres_sha }}
+
+      - name: Build PostgreSQL code
+        if: steps.cache-pg-build.outputs.cache-hit != 'true'
+        run: |
+          pushd postgres
+          git branch
+          CC="clang" CXX="clang++" CLANG="clang" meson setup --buildtype=debug --auto-features=auto -Dtap_tests=disabled build --prefix=$PWD/inst/
+          ninja -C build -j 16 install
+
+      - name: Install extension dependencies
+        id: dependencies
+        run: |
+          pushd pg_tpch
+          cmake -Bbuild
+          cmake --build build --target install
+
+      - name: Build and test extension
+        id: build
+        run: |
+          pushd pg_planner
+          cmake --preset Coverage
+
+      - name: check formatting
+        run: |
+          pushd pg_planner
+          cmake --build build/Coverage --target check-format
+
+      - name: Install extension and test
+        id: installcheck
+        run: |
+          pushd pg_planner
+          cmake --build build/Coverage --target install
+          cmake --build build/Coverage --target test
+
+      - name: Print regression.diffs if regression tests failed
+        if: failure() && steps.installcheck.outcome != 'success'
+        run: |
+          pushd pg_planner
+          ls -lrta
+          cat build/Coverage/Testing/Temporary/LastTest.log
+          cat build/Coverage/test/regression.diffs
+
+      # coverage

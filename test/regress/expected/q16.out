@@ -1,0 +1,114 @@
+select query from tpch_queries(16); \gset
+                        query                        
+-----------------------------------------------------
+ SELECT                                             +
+     p_brand,                                       +
+     p_type,                                        +
+     p_size,                                        +
+     count(DISTINCT ps_suppkey) AS supplier_cnt     +
+ FROM                                               +
+     partsupp,                                      +
+     part                                           +
+ WHERE                                              +
+     p_partkey = ps_partkey                         +
+     AND p_brand <> 'Brand#45'                      +
+     AND p_type NOT LIKE 'MEDIUM POLISHED%'         +
+     AND p_size IN (49, 14, 23, 45, 19, 3, 36, 9)   +
+     AND ps_suppkey NOT IN (                        +
+         SELECT                                     +
+             s_suppkey                              +
+         FROM                                       +
+             supplier                               +
+         WHERE                                      +
+             s_comment LIKE '%Customer%Complaints%')+
+ GROUP BY                                           +
+     p_brand,                                       +
+     p_type,                                        +
+     p_size                                         +
+ ORDER BY                                           +
+     supplier_cnt DESC,                             +
+     p_brand,                                       +
+     p_type,                                        +
+     p_size;                                        +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(16);
+        transform_query        
+-------------------------------
+ LogicalGbAgg                 +
+ └── LogicalApply: ANY_SUBLINK+
+     ├── LogicalJoin: INNER   +
+     │   ├── LogicalGet       +
+     │   └── LogicalGet       +
+     └── LogicalSelect        +
+         └── LogicalGet       +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                        QUERY PLAN                                                                                        
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: part.p_brand, part.p_type, part.p_size, count(partsupp.ps_suppkey)
+   Group Key: part.p_brand, part.p_type, part.p_size
+   ->  Result  (cost=0.00..0.00 rows=0 width=0)
+         Output: part.p_brand, partsupp.ps_suppkey, part.p_size, part.p_type
+         Filter: (NOT (ANY (partsupp.ps_suppkey = (SubPlan 1).col1)))
+         ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+               Output: part.p_type, part.p_size, partsupp.ps_suppkey, part.p_brand
+               Join Filter: (part.p_partkey = partsupp.ps_partkey)
+               ->  Seq Scan on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: partsupp.ps_suppkey, partsupp.ps_partkey
+               ->  Seq Scan on public.part  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: part.p_type, part.p_size, part.p_partkey, part.p_brand
+                     Filter: ((part.p_brand <> 'Brand#45'::bpchar) AND ((part.p_type)::text !~~ 'MEDIUM POLISHED%'::text) AND (part.p_size = ANY ('{49,14,23,45,19,3,36,9}'::integer[])))
+         SubPlan 1
+           ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                 Output: supplier.s_suppkey
+                 Filter: ((supplier.s_comment)::text ~~ '%Customer%Complaints%'::text)
+ Optimizer: PGP
+(19 rows)
+
+:query
+ p_brand | p_type | p_size | supplier_cnt 
+---------+--------+--------+--------------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                              QUERY PLAN                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=38.50..38.51 rows=4 width=124)
+   Output: part.p_brand, part.p_type, part.p_size, (count(DISTINCT partsupp.ps_suppkey))
+   Sort Key: (count(DISTINCT partsupp.ps_suppkey)) DESC, part.p_brand, part.p_type, part.p_size
+   ->  GroupAggregate  (cost=38.37..38.46 rows=4 width=124)
+         Output: part.p_brand, part.p_type, part.p_size, count(DISTINCT partsupp.ps_suppkey)
+         Group Key: part.p_brand, part.p_type, part.p_size
+         ->  Sort  (cost=38.37..38.38 rows=4 width=120)
+               Output: part.p_brand, part.p_type, part.p_size, partsupp.ps_suppkey
+               Sort Key: part.p_brand, part.p_type, part.p_size, partsupp.ps_suppkey
+               ->  Hash Join  (cost=25.98..38.33 rows=4 width=120)
+                     Output: part.p_brand, part.p_type, part.p_size, partsupp.ps_suppkey
+                     Inner Unique: true
+                     Hash Cond: (partsupp.ps_partkey = part.p_partkey)
+                     ->  Seq Scan on public.partsupp  (cost=11.88..24.00 rows=85 width=8)
+                           Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                           Filter: (NOT (ANY (partsupp.ps_suppkey = (hashed SubPlan 1).col1)))
+                           SubPlan 1
+                             ->  Seq Scan on public.supplier  (cost=0.00..11.88 rows=1 width=4)
+                                   Output: supplier.s_suppkey
+                                   Filter: ((supplier.s_comment)::text ~~ '%Customer%Complaints%'::text)
+                     ->  Hash  (cost=14.00..14.00 rows=8 width=120)
+                           Output: part.p_brand, part.p_type, part.p_size, part.p_partkey
+                           ->  Seq Scan on public.part  (cost=0.00..14.00 rows=8 width=120)
+                                 Output: part.p_brand, part.p_type, part.p_size, part.p_partkey
+                                 Filter: ((part.p_brand <> 'Brand#45'::bpchar) AND ((part.p_type)::text !~~ 'MEDIUM POLISHED%'::text) AND (part.p_size = ANY ('{49,14,23,45,19,3,36,9}'::integer[])))
+(25 rows)
+
+:query
+ p_brand | p_type | p_size | supplier_cnt 
+---------+--------+--------+--------------
+(0 rows)
+

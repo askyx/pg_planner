@@ -1,0 +1,126 @@
+select query from tpch_queries(11); \gset
+                            query                            
+-------------------------------------------------------------
+ SELECT                                                     +
+     ps_partkey,                                            +
+     sum(ps_supplycost * ps_availqty) AS value              +
+ FROM                                                       +
+     partsupp,                                              +
+     supplier,                                              +
+     nation                                                 +
+ WHERE                                                      +
+     ps_suppkey = s_suppkey                                 +
+     AND s_nationkey = n_nationkey                          +
+     AND n_name = 'GERMANY'                                 +
+ GROUP BY                                                   +
+     ps_partkey                                             +
+ HAVING                                                     +
+     sum(ps_supplycost * ps_availqty) > (                   +
+         SELECT                                             +
+             sum(ps_supplycost * ps_availqty) * 0.0001000000+
+         FROM                                               +
+             partsupp,                                      +
+             supplier,                                      +
+             nation                                         +
+         WHERE                                              +
+             ps_suppkey = s_suppkey                         +
+             AND s_nationkey = n_nationkey                  +
+             AND n_name = 'GERMANY')                        +
+ ORDER BY                                                   +
+     value DESC;                                            +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(11);
+      transform_query       
+----------------------------
+ LogicalGbAgg              +
+ └── LogicalJoin: INNER    +
+     ├── LogicalJoin: INNER+
+     │   ├── LogicalGet    +
+     │   └── LogicalGet    +
+     └── LogicalGet        +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                        QUERY PLAN                                                        
+--------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: partsupp.ps_partkey, sum((partsupp.ps_supplycost * "numeric"(partsupp.ps_availqty)))
+   Group Key: partsupp.ps_partkey
+   ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+         Output: partsupp.ps_partkey, partsupp.ps_availqty, partsupp.ps_supplycost
+         Join Filter: (supplier.s_nationkey = nation.n_nationkey)
+         ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+               Output: partsupp.ps_supplycost, partsupp.ps_availqty, supplier.s_nationkey, partsupp.ps_partkey
+               Join Filter: (partsupp.ps_suppkey = supplier.s_suppkey)
+               ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: partsupp.ps_partkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_suppkey
+                     Sort Key: partsupp.ps_partkey COLLATE "default"
+                     ->  Seq Scan on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: partsupp.ps_partkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_suppkey
+               ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: supplier.s_suppkey, supplier.s_nationkey
+         ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
+               Output: nation.n_nationkey
+               Filter: (nation.n_name = 'GERMANY'::bpchar)
+ Optimizer: PGP
+(20 rows)
+
+:query
+ ps_partkey | value 
+------------+-------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                        QUERY PLAN                                                                                         
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=41.60..41.60 rows=1 width=36)
+   Output: partsupp.ps_partkey, (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric)))
+   Sort Key: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric))) DESC
+   InitPlan 1
+     ->  Aggregate  (cost=20.77..20.79 rows=1 width=32)
+           Output: (sum((partsupp_1.ps_supplycost * (partsupp_1.ps_availqty)::numeric)) * 0.0001000000)
+           ->  Nested Loop  (cost=0.29..20.76 rows=1 width=22)
+                 Output: partsupp_1.ps_supplycost, partsupp_1.ps_availqty
+                 ->  Nested Loop  (cost=0.14..20.30 rows=1 width=4)
+                       Output: supplier_1.s_suppkey
+                       ->  Seq Scan on public.nation nation_1  (cost=0.00..12.12 rows=1 width=4)
+                             Output: nation_1.n_nationkey, nation_1.n_name, nation_1.n_regionkey, nation_1.n_comment
+                             Filter: (nation_1.n_name = 'GERMANY'::bpchar)
+                       ->  Index Scan using idx_supplier_nation_key on public.supplier supplier_1  (cost=0.14..8.16 rows=1 width=8)
+                             Output: supplier_1.s_suppkey, supplier_1.s_name, supplier_1.s_address, supplier_1.s_nationkey, supplier_1.s_phone, supplier_1.s_acctbal, supplier_1.s_comment
+                             Index Cond: (supplier_1.s_nationkey = nation_1.n_nationkey)
+                 ->  Index Scan using idx_partsupp_suppkey on public.partsupp partsupp_1  (cost=0.14..0.46 rows=1 width=26)
+                       Output: partsupp_1.ps_partkey, partsupp_1.ps_suppkey, partsupp_1.ps_availqty, partsupp_1.ps_supplycost, partsupp_1.ps_comment
+                       Index Cond: (partsupp_1.ps_suppkey = supplier_1.s_suppkey)
+   ->  GroupAggregate  (cost=20.77..20.80 rows=1 width=36)
+         Output: partsupp.ps_partkey, sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric))
+         Group Key: partsupp.ps_partkey
+         Filter: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric)) > (InitPlan 1).col1)
+         ->  Sort  (cost=20.77..20.78 rows=1 width=26)
+               Output: partsupp.ps_partkey, partsupp.ps_supplycost, partsupp.ps_availqty
+               Sort Key: partsupp.ps_partkey
+               ->  Nested Loop  (cost=0.29..20.76 rows=1 width=26)
+                     Output: partsupp.ps_partkey, partsupp.ps_supplycost, partsupp.ps_availqty
+                     ->  Nested Loop  (cost=0.14..20.30 rows=1 width=4)
+                           Output: supplier.s_suppkey
+                           ->  Seq Scan on public.nation  (cost=0.00..12.12 rows=1 width=4)
+                                 Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                                 Filter: (nation.n_name = 'GERMANY'::bpchar)
+                           ->  Index Scan using idx_supplier_nation_key on public.supplier  (cost=0.14..8.16 rows=1 width=8)
+                                 Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                 Index Cond: (supplier.s_nationkey = nation.n_nationkey)
+                     ->  Index Scan using idx_partsupp_suppkey on public.partsupp  (cost=0.14..0.46 rows=1 width=30)
+                           Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                           Index Cond: (partsupp.ps_suppkey = supplier.s_suppkey)
+(39 rows)
+
+:query
+ ps_partkey | value 
+------------+-------
+(0 rows)
+

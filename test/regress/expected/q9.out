@@ -1,0 +1,153 @@
+select query from tpch_queries(9); \gset
+                                       query                                       
+-----------------------------------------------------------------------------------
+ SELECT                                                                           +
+     nation,                                                                      +
+     o_year,                                                                      +
+     sum(amount) AS sum_profit                                                    +
+ FROM (                                                                           +
+     SELECT                                                                       +
+         n_name AS nation,                                                        +
+         extract(year FROM o_orderdate) AS o_year,                                +
+         l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity AS amount+
+     FROM                                                                         +
+         part,                                                                    +
+         supplier,                                                                +
+         lineitem,                                                                +
+         partsupp,                                                                +
+         orders,                                                                  +
+         nation                                                                   +
+     WHERE                                                                        +
+         s_suppkey = l_suppkey                                                    +
+         AND ps_suppkey = l_suppkey                                               +
+         AND ps_partkey = l_partkey                                               +
+         AND p_partkey = l_partkey                                                +
+         AND o_orderkey = l_orderkey                                              +
+         AND s_nationkey = n_nationkey                                            +
+         AND p_name LIKE '%green%') AS profit                                     +
+ GROUP BY                                                                         +
+     nation,                                                                      +
+     o_year                                                                       +
+ ORDER BY                                                                         +
+     nation,                                                                      +
+     o_year DESC;                                                                 +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(9);
+              transform_query               
+--------------------------------------------
+ LogicalGbAgg                              +
+ └── LogicalProject                        +
+     └── LogicalJoin: INNER                +
+         ├── LogicalJoin: INNER            +
+         │   ├── LogicalJoin: INNER        +
+         │   │   ├── LogicalJoin: INNER    +
+         │   │   │   ├── LogicalJoin: INNER+
+         │   │   │   │   ├── LogicalGet    +
+         │   │   │   │   └── LogicalGet    +
+         │   │   │   └── LogicalGet        +
+         │   │   └── LogicalGet            +
+         │   └── LogicalGet                +
+         └── LogicalGet                    +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                               QUERY PLAN                                                                                               
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: nation.n_name, ("extract"('year'::text, orders.o_orderdate)), sum((((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity))))
+   Group Key: nation.n_name, ("extract"('year'::text, orders.o_orderdate))
+   ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+         Output: (((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity))), ("extract"('year'::text, orders.o_orderdate)), nation.n_name
+         Sort Key: nation.n_name, ("extract"('year'::text, orders.o_orderdate)) DESC
+         ->  Result  (cost=0.00..100.00 rows=1000 width=8)
+               Output: ((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity)), "extract"('year'::text, orders.o_orderdate), nation.n_name
+               ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: nation.n_name, orders.o_orderdate, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, partsupp.ps_supplycost
+                     Join Filter: (supplier.s_nationkey = nation.n_nationkey)
+                     ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: partsupp.ps_supplycost, lineitem.l_discount, lineitem.l_extendedprice, lineitem.l_quantity, orders.o_orderdate, supplier.s_nationkey
+                           Join Filter: (orders.o_orderkey = lineitem.l_orderkey)
+                           ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: supplier.s_nationkey, lineitem.l_orderkey, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, partsupp.ps_supplycost
+                                 Join Filter: ((partsupp.ps_suppkey = lineitem.l_suppkey) AND (partsupp.ps_partkey = lineitem.l_partkey))
+                                 ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                       Output: lineitem.l_discount, lineitem.l_extendedprice, lineitem.l_quantity, lineitem.l_orderkey, supplier.s_nationkey, lineitem.l_partkey, lineitem.l_suppkey
+                                       Join Filter: ((supplier.s_suppkey = lineitem.l_suppkey) AND (part.p_partkey = lineitem.l_partkey))
+                                       ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                             Output: supplier.s_nationkey, supplier.s_suppkey, part.p_partkey
+                                             Join Filter: true
+                                             ->  Seq Scan on public.part  (cost=0.00..100.00 rows=1000 width=8)
+                                                   Output: part.p_partkey
+                                                   Filter: ((part.p_name)::text ~~ '%green%'::text)
+                                             ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                                                   Output: supplier.s_nationkey, supplier.s_suppkey
+                                       ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                                             Output: lineitem.l_discount, lineitem.l_extendedprice, lineitem.l_quantity, lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey
+                                 ->  Seq Scan on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
+                                       Output: partsupp.ps_suppkey, partsupp.ps_partkey, partsupp.ps_supplycost
+                           ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: orders.o_orderkey, orders.o_orderdate
+                     ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: nation.n_nationkey, nation.n_name
+ Optimizer: PGP
+(37 rows)
+
+:query
+ nation | o_year | sum_profit 
+--------+--------+------------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                                   QUERY PLAN                                                                                                                                                                                                   
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=21.81..21.85 rows=1 width=168)
+   Output: nation.n_name, (EXTRACT(year FROM orders.o_orderdate)), sum(((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity)))
+   Group Key: nation.n_name, (EXTRACT(year FROM orders.o_orderdate))
+   ->  Sort  (cost=21.81..21.81 rows=1 width=208)
+         Output: nation.n_name, (EXTRACT(year FROM orders.o_orderdate)), lineitem.l_extendedprice, lineitem.l_discount, partsupp.ps_supplycost, lineitem.l_quantity
+         Sort Key: nation.n_name, (EXTRACT(year FROM orders.o_orderdate)) DESC
+         ->  Nested Loop  (cost=0.72..21.80 rows=1 width=208)
+               Output: nation.n_name, EXTRACT(year FROM orders.o_orderdate), lineitem.l_extendedprice, lineitem.l_discount, partsupp.ps_supplycost, lineitem.l_quantity
+               Inner Unique: true
+               ->  Nested Loop  (cost=0.58..21.34 rows=1 width=80)
+                     Output: lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_quantity, supplier.s_nationkey, partsupp.ps_supplycost, orders.o_orderdate
+                     Inner Unique: true
+                     ->  Nested Loop  (cost=0.43..20.95 rows=1 width=80)
+                           Output: lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_quantity, lineitem.l_orderkey, supplier.s_nationkey, partsupp.ps_supplycost
+                           Inner Unique: true
+                           ->  Nested Loop  (cost=0.29..20.57 rows=1 width=84)
+                                 Output: lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_quantity, lineitem.l_suppkey, lineitem.l_orderkey, partsupp.ps_supplycost, partsupp.ps_suppkey
+                                 Inner Unique: true
+                                 ->  Nested Loop  (cost=0.14..20.17 rows=1 width=70)
+                                       Output: part.p_partkey, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_quantity, lineitem.l_suppkey, lineitem.l_partkey, lineitem.l_orderkey
+                                       ->  Seq Scan on public.part  (cost=0.00..12.00 rows=1 width=4)
+                                             Output: part.p_partkey, part.p_name, part.p_mfgr, part.p_brand, part.p_type, part.p_size, part.p_container, part.p_retailprice, part.p_comment
+                                             Filter: ((part.p_name)::text ~~ '%green%'::text)
+                                       ->  Index Scan using idx_lineitem_part_supp on public.lineitem  (cost=0.14..8.16 rows=1 width=66)
+                                             Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                                             Index Cond: (lineitem.l_partkey = part.p_partkey)
+                                 ->  Index Scan using idx_partsupp_suppkey on public.partsupp  (cost=0.14..0.39 rows=1 width=26)
+                                       Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                                       Index Cond: (partsupp.ps_suppkey = lineitem.l_suppkey)
+                                       Filter: (lineitem.l_partkey = partsupp.ps_partkey)
+                           ->  Index Scan using supplier_pkey on public.supplier  (cost=0.14..0.38 rows=1 width=8)
+                                 Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                 Index Cond: (supplier.s_suppkey = lineitem.l_suppkey)
+                     ->  Index Scan using orders_pkey on public.orders  (cost=0.14..0.38 rows=1 width=8)
+                           Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                           Index Cond: (orders.o_orderkey = lineitem.l_orderkey)
+               ->  Index Scan using nation_pkey on public.nation  (cost=0.14..0.46 rows=1 width=108)
+                     Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                     Index Cond: (nation.n_nationkey = supplier.s_nationkey)
+(39 rows)
+
+:query
+ nation | o_year | sum_profit 
+--------+--------+------------
+(0 rows)
+

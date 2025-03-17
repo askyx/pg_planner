@@ -1,0 +1,144 @@
+select query from tpch_queries(18); \gset
+               query                
+------------------------------------
+ SELECT                            +
+     c_name,                       +
+     c_custkey,                    +
+     o_orderkey,                   +
+     o_orderdate,                  +
+     o_totalprice,                 +
+     sum(l_quantity)               +
+ FROM                              +
+     customer,                     +
+     orders,                       +
+     lineitem                      +
+ WHERE                             +
+     o_orderkey IN (               +
+         SELECT                    +
+             l_orderkey            +
+         FROM                      +
+             lineitem              +
+         GROUP BY                  +
+             l_orderkey            +
+         HAVING                    +
+             sum(l_quantity) > 300)+
+     AND c_custkey = o_custkey     +
+     AND o_orderkey = l_orderkey   +
+ GROUP BY                          +
+     c_name,                       +
+     c_custkey,                    +
+     o_orderkey,                   +
+     o_orderdate,                  +
+     o_totalprice                  +
+ ORDER BY                          +
+     o_totalprice DESC,            +
+     o_orderdate                   +
+ LIMIT 100;                        +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(18);
+                 transform_query                  
+--------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL+
+ └── LogicalGbAgg                                +
+     └── LogicalApply: ANY_SUBLINK               +
+         ├── LogicalJoin: INNER                  +
+         │   ├── LogicalJoin: INNER              +
+         │   │   ├── LogicalGet                  +
+         │   │   └── LogicalGet                  +
+         │   └── LogicalGet                      +
+         └── LogicalGbAgg                        +
+             └── LogicalGet                      +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..100.00 rows=1000 width=8)
+   Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, (sum(lineitem.l_quantity))
+   ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+         Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, sum(lineitem.l_quantity)
+         Group Key: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice
+         ->  Result  (cost=0.00..0.00 rows=0 width=0)
+               Output: customer.c_name, orders.o_orderkey, orders.o_orderdate, customer.c_custkey, orders.o_totalprice, lineitem.l_quantity
+               Filter: (ANY (orders.o_orderkey = (SubPlan 1).col1))
+               ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: lineitem.l_quantity, orders.o_totalprice, customer.c_custkey, orders.o_orderdate, orders.o_orderkey, customer.c_name
+                     Join Filter: (orders.o_orderkey = lineitem.l_orderkey)
+                     ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: customer.c_name, orders.o_orderkey, orders.o_orderdate, customer.c_custkey, orders.o_totalprice
+                           Join Filter: (customer.c_custkey = orders.o_custkey)
+                           ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: customer.c_custkey, customer.c_name
+                           ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: orders.o_orderkey, orders.o_orderdate, orders.o_custkey, orders.o_totalprice
+                     ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: lineitem.l_orderkey, lineitem.l_quantity
+               SubPlan 1
+                 ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+                       Output: lineitem_1.l_orderkey
+                       Group Key: lineitem_1.l_orderkey
+                       ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+                             Output: lineitem_1.l_orderkey
+                             Sort Key: lineitem_1.l_orderkey COLLATE "default"
+                             ->  Seq Scan on public.lineitem lineitem_1  (cost=0.00..100.00 rows=1000 width=8)
+                                   Output: lineitem_1.l_orderkey
+ Optimizer: PGP
+(30 rows)
+
+:query
+ c_name | c_custkey | o_orderkey | o_orderdate | o_totalprice | sum 
+--------+-----------+------------+-------------+--------------+-----
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                                                         QUERY PLAN                                                                                                                                                                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=58.75..58.86 rows=45 width=130)
+   Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, (sum(lineitem.l_quantity))
+   ->  Sort  (cost=58.75..58.86 rows=45 width=130)
+         Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, (sum(lineitem.l_quantity))
+         Sort Key: orders.o_totalprice DESC, orders.o_orderdate
+         ->  HashAggregate  (cost=56.95..57.51 rows=45 width=130)
+               Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, sum(lineitem.l_quantity)
+               Group Key: customer.c_custkey, orders.o_orderkey
+               ->  Hash Join  (cost=43.41..56.61 rows=45 width=116)
+                     Output: customer.c_custkey, orders.o_orderkey, customer.c_name, orders.o_orderdate, orders.o_totalprice, lineitem.l_quantity
+                     Hash Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                     ->  Seq Scan on public.lineitem  (cost=0.00..12.00 rows=200 width=22)
+                           Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                     ->  Hash  (cost=42.83..42.83 rows=47 width=102)
+                           Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, lineitem_1.l_orderkey
+                           ->  Hash Join  (cost=29.99..42.83 rows=47 width=102)
+                                 Output: customer.c_name, customer.c_custkey, orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, lineitem_1.l_orderkey
+                                 Inner Unique: true
+                                 Hash Cond: (orders.o_custkey = customer.c_custkey)
+                                 ->  Hash Join  (cost=16.84..29.50 rows=67 width=34)
+                                       Output: orders.o_orderkey, orders.o_orderdate, orders.o_totalprice, orders.o_custkey, lineitem_1.l_orderkey
+                                       Inner Unique: true
+                                       Hash Cond: (orders.o_orderkey = lineitem_1.l_orderkey)
+                                       ->  Seq Scan on public.orders  (cost=0.00..12.10 rows=210 width=30)
+                                             Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                       ->  Hash  (cost=16.00..16.00 rows=67 width=4)
+                                             Output: lineitem_1.l_orderkey
+                                             ->  HashAggregate  (cost=13.00..16.00 rows=67 width=4)
+                                                   Output: lineitem_1.l_orderkey
+                                                   Group Key: lineitem_1.l_orderkey
+                                                   Filter: (sum(lineitem_1.l_quantity) > '300'::numeric)
+                                                   ->  Seq Scan on public.lineitem lineitem_1  (cost=0.00..12.00 rows=200 width=22)
+                                                         Output: lineitem_1.l_orderkey, lineitem_1.l_partkey, lineitem_1.l_suppkey, lineitem_1.l_linenumber, lineitem_1.l_quantity, lineitem_1.l_extendedprice, lineitem_1.l_discount, lineitem_1.l_tax, lineitem_1.l_returnflag, lineitem_1.l_linestatus, lineitem_1.l_shipdate, lineitem_1.l_commitdate, lineitem_1.l_receiptdate, lineitem_1.l_shipinstruct, lineitem_1.l_shipmode, lineitem_1.l_comment
+                                 ->  Hash  (cost=11.40..11.40 rows=140 width=72)
+                                       Output: customer.c_name, customer.c_custkey
+                                       ->  Seq Scan on public.customer  (cost=0.00..11.40 rows=140 width=72)
+                                             Output: customer.c_name, customer.c_custkey
+(37 rows)
+
+:query
+ c_name | c_custkey | o_orderkey | o_orderdate | o_totalprice | sum 
+--------+-----------+------------+-------------+--------------+-----
+(0 rows)
+

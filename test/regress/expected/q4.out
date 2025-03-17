@@ -1,0 +1,92 @@
+select query from tpch_queries(4); \gset
+                      query                       
+--------------------------------------------------
+ SELECT                                          +
+     o_orderpriority,                            +
+     count(*) AS order_count                     +
+ FROM                                            +
+     orders                                      +
+ WHERE                                           +
+     o_orderdate >= CAST('1993-07-01' AS date)   +
+     AND o_orderdate < CAST('1993-10-01' AS date)+
+     AND EXISTS (                                +
+         SELECT                                  +
+             *                                   +
+         FROM                                    +
+             lineitem                            +
+         WHERE                                   +
+             l_orderkey = o_orderkey             +
+             AND l_commitdate < l_receiptdate)   +
+ GROUP BY                                        +
+     o_orderpriority                             +
+ ORDER BY                                        +
+     o_orderpriority;                            +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(4);
+           transform_query            
+--------------------------------------
+ LogicalGbAgg                        +
+ └── LogicalSelect                   +
+     └── LogicalApply: EXISTS_SUBLINK+
+         ├── LogicalGet              +
+         └── LogicalSelect           +
+             └── LogicalGet          +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                        QUERY PLAN                                                        
+--------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: orders.o_orderpriority, count()
+   Group Key: orders.o_orderpriority
+   ->  Result  (cost=0.00..0.00 rows=0 width=0)
+         Output: orders.o_orderpriority
+         Filter: EXISTS(SubPlan 1)
+         ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+               Output: orders.o_orderpriority, orders.o_orderkey
+               Sort Key: orders.o_orderpriority
+               ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: orders.o_orderpriority, orders.o_orderkey
+                     Filter: ((orders.o_orderdate >= '07-01-1993'::date) AND (orders.o_orderdate < '10-01-1993'::date))
+         SubPlan 1
+           ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                 Output: lineitem.l_orderkey
+                 Filter: ((lineitem.l_orderkey = orders.o_orderkey) AND (lineitem.l_commitdate < lineitem.l_receiptdate))
+ Optimizer: PGP
+(17 rows)
+
+:query
+ o_orderpriority | order_count 
+-----------------+-------------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                       QUERY PLAN                                                                                                                                                                                       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=21.51..21.53 rows=1 width=72)
+   Output: orders.o_orderpriority, count(*)
+   Group Key: orders.o_orderpriority
+   ->  Sort  (cost=21.51..21.52 rows=1 width=64)
+         Output: orders.o_orderpriority
+         Sort Key: orders.o_orderpriority
+         ->  Nested Loop Semi Join  (cost=0.14..21.50 rows=1 width=64)
+               Output: orders.o_orderpriority
+               Join Filter: (orders.o_orderkey = lineitem.l_orderkey)
+               ->  Index Scan using idx_orders_orderdate on public.orders  (cost=0.14..8.16 rows=1 width=68)
+                     Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                     Index Cond: ((orders.o_orderdate >= '07-01-1993'::date) AND (orders.o_orderdate < '10-01-1993'::date))
+               ->  Seq Scan on public.lineitem  (cost=0.00..12.50 rows=67 width=4)
+                     Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                     Filter: (lineitem.l_commitdate < lineitem.l_receiptdate)
+(15 rows)
+
+:query
+ o_orderpriority | order_count 
+-----------------+-------------
+(0 rows)
+

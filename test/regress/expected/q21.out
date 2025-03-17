@@ -1,0 +1,173 @@
+select query from tpch_queries(21); \gset
+                        query                        
+-----------------------------------------------------
+ SELECT                                             +
+     s_name,                                        +
+     count(*) AS numwait                            +
+ FROM                                               +
+     supplier,                                      +
+     lineitem l1,                                   +
+     orders,                                        +
+     nation                                         +
+ WHERE                                              +
+     s_suppkey = l1.l_suppkey                       +
+     AND o_orderkey = l1.l_orderkey                 +
+     AND o_orderstatus = 'F'                        +
+     AND l1.l_receiptdate > l1.l_commitdate         +
+     AND EXISTS (                                   +
+         SELECT                                     +
+             *                                      +
+         FROM                                       +
+             lineitem l2                            +
+         WHERE                                      +
+             l2.l_orderkey = l1.l_orderkey          +
+             AND l2.l_suppkey <> l1.l_suppkey)      +
+     AND NOT EXISTS (                               +
+         SELECT                                     +
+             *                                      +
+         FROM                                       +
+             lineitem l3                            +
+         WHERE                                      +
+             l3.l_orderkey = l1.l_orderkey          +
+             AND l3.l_suppkey <> l1.l_suppkey       +
+             AND l3.l_receiptdate > l3.l_commitdate)+
+     AND s_nationkey = n_nationkey                  +
+     AND n_name = 'SAUDI ARABIA'                    +
+ GROUP BY                                           +
+     s_name                                         +
+ ORDER BY                                           +
+     numwait DESC,                                  +
+     s_name                                         +
+ LIMIT 100;                                         +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(21);
+                 transform_query                  
+--------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL+
+ └── LogicalGbAgg                                +
+     └── LogicalApply: EXISTS_SUBLINK            +
+         ├── LogicalApply: EXISTS_SUBLINK        +
+         │   ├── LogicalJoin: INNER              +
+         │   │   ├── LogicalJoin: INNER          +
+         │   │   │   ├── LogicalJoin: INNER      +
+         │   │   │   │   ├── LogicalGet          +
+         │   │   │   │   └── LogicalGet          +
+         │   │   │   └── LogicalGet              +
+         │   │   └── LogicalGet                  +
+         │   └── LogicalSelect                   +
+         │       └── LogicalGet                  +
+         └── LogicalSelect                       +
+             └── LogicalGet                      +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                                               QUERY PLAN                                                                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..100.00 rows=1000 width=8)
+   Output: supplier.s_name, (count())
+   ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
+         Output: supplier.s_name, count()
+         Group Key: supplier.s_name
+         ->  Result  (cost=0.00..0.00 rows=0 width=0)
+               Output: supplier.s_name
+               Filter: (NOT EXISTS(SubPlan 2))
+               ->  Result  (cost=0.00..0.00 rows=0 width=0)
+                     Output: supplier.s_name, nation.n_name, nation.n_nationkey, orders.o_orderkey, supplier.s_nationkey, l1.l_receiptdate, l1.l_commitdate, orders.o_orderstatus, supplier.s_suppkey, l1.l_orderkey, l1.l_suppkey
+                     Filter: EXISTS(SubPlan 1)
+                     ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                           Output: supplier.s_suppkey, orders.o_orderstatus, l1.l_commitdate, l1.l_receiptdate, supplier.s_nationkey, orders.o_orderkey, nation.n_nationkey, nation.n_name, supplier.s_name, l1.l_orderkey, l1.l_suppkey
+                           Join Filter: true
+                           ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: l1.l_suppkey, l1.l_orderkey, supplier.s_name, orders.o_orderkey, supplier.s_nationkey, l1.l_receiptdate, l1.l_commitdate, orders.o_orderstatus, supplier.s_suppkey
+                                 Join Filter: true
+                                 ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+                                       Output: supplier.s_suppkey, l1.l_commitdate, l1.l_receiptdate, supplier.s_nationkey, supplier.s_name, l1.l_orderkey, l1.l_suppkey
+                                       Join Filter: true
+                                       ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+                                             Output: supplier.s_name, supplier.s_nationkey, supplier.s_suppkey
+                                             Sort Key: supplier.s_name
+                                             ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                                                   Output: supplier.s_name, supplier.s_nationkey, supplier.s_suppkey
+                                       ->  Seq Scan on public.lineitem l1  (cost=0.00..100.00 rows=1000 width=8)
+                                             Output: l1.l_commitdate, l1.l_receiptdate, l1.l_orderkey, l1.l_suppkey
+                                 ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                                       Output: orders.o_orderkey, orders.o_orderstatus
+                           ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
+                                 Output: nation.n_nationkey, nation.n_name
+                     SubPlan 1
+                       ->  Seq Scan on public.lineitem l2  (cost=0.00..100.00 rows=1000 width=8)
+                             Output: l2.l_orderkey
+                             Filter: ((l2.l_orderkey = l1.l_orderkey) AND (l2.l_suppkey <> l1.l_suppkey))
+               SubPlan 2
+                 ->  Seq Scan on public.lineitem l3  (cost=0.00..100.00 rows=1000 width=8)
+                       Output: l3.l_orderkey
+                       Filter: ((l3.l_orderkey = l1.l_orderkey) AND (l3.l_suppkey <> l1.l_suppkey) AND (l3.l_receiptdate > l3.l_commitdate))
+ Optimizer: PGP
+(40 rows)
+
+:query
+ s_name | numwait 
+--------+---------
+(0 rows)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                         QUERY PLAN                                                                                                                                                         
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=24.11..24.11 rows=1 width=112)
+   Output: supplier.s_name, (count(*))
+   ->  Sort  (cost=24.11..24.11 rows=1 width=112)
+         Output: supplier.s_name, (count(*))
+         Sort Key: (count(*)) DESC, supplier.s_name
+         ->  GroupAggregate  (cost=24.08..24.10 rows=1 width=112)
+               Output: supplier.s_name, count(*)
+               Group Key: supplier.s_name
+               ->  Sort  (cost=24.08..24.08 rows=1 width=104)
+                     Output: supplier.s_name
+                     Sort Key: supplier.s_name
+                     ->  Nested Loop Anti Join  (cost=0.72..24.07 rows=1 width=104)
+                           Output: supplier.s_name
+                           ->  Nested Loop Semi Join  (cost=0.58..23.23 rows=1 width=112)
+                                 Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey
+                                 Join Filter: (orders.o_orderkey = l2.l_orderkey)
+                                 ->  Nested Loop  (cost=0.43..22.40 rows=1 width=116)
+                                       Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey, orders.o_orderkey
+                                       Inner Unique: true
+                                       ->  Nested Loop  (cost=0.29..21.63 rows=1 width=120)
+                                             Output: supplier.s_name, supplier.s_nationkey, l1.l_suppkey, l1.l_orderkey, orders.o_orderkey
+                                             Inner Unique: true
+                                             ->  Nested Loop  (cost=0.14..20.80 rows=1 width=12)
+                                                   Output: l1.l_suppkey, l1.l_orderkey, orders.o_orderkey
+                                                   ->  Seq Scan on public.orders  (cost=0.00..12.62 rows=1 width=4)
+                                                         Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                                         Filter: (orders.o_orderstatus = 'F'::bpchar)
+                                                   ->  Index Scan using idx_lineitem_orderkey on public.lineitem l1  (cost=0.14..8.16 rows=1 width=8)
+                                                         Output: l1.l_orderkey, l1.l_partkey, l1.l_suppkey, l1.l_linenumber, l1.l_quantity, l1.l_extendedprice, l1.l_discount, l1.l_tax, l1.l_returnflag, l1.l_linestatus, l1.l_shipdate, l1.l_commitdate, l1.l_receiptdate, l1.l_shipinstruct, l1.l_shipmode, l1.l_comment
+                                                         Index Cond: (l1.l_orderkey = orders.o_orderkey)
+                                                         Filter: (l1.l_receiptdate > l1.l_commitdate)
+                                             ->  Index Scan using supplier_pkey on public.supplier  (cost=0.14..0.82 rows=1 width=112)
+                                                   Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                                   Index Cond: (supplier.s_suppkey = l1.l_suppkey)
+                                       ->  Index Scan using nation_pkey on public.nation  (cost=0.14..0.46 rows=1 width=4)
+                                             Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                                             Index Cond: (nation.n_nationkey = supplier.s_nationkey)
+                                             Filter: (nation.n_name = 'SAUDI ARABIA'::bpchar)
+                                 ->  Index Scan using idx_lineitem_orderkey on public.lineitem l2  (cost=0.14..0.82 rows=1 width=8)
+                                       Output: l2.l_orderkey, l2.l_partkey, l2.l_suppkey, l2.l_linenumber, l2.l_quantity, l2.l_extendedprice, l2.l_discount, l2.l_tax, l2.l_returnflag, l2.l_linestatus, l2.l_shipdate, l2.l_commitdate, l2.l_receiptdate, l2.l_shipinstruct, l2.l_shipmode, l2.l_comment
+                                       Index Cond: (l2.l_orderkey = l1.l_orderkey)
+                                       Filter: (l2.l_suppkey <> l1.l_suppkey)
+                           ->  Index Scan using idx_lineitem_orderkey on public.lineitem l3  (cost=0.14..0.82 rows=1 width=8)
+                                 Output: l3.l_orderkey, l3.l_partkey, l3.l_suppkey, l3.l_linenumber, l3.l_quantity, l3.l_extendedprice, l3.l_discount, l3.l_tax, l3.l_returnflag, l3.l_linestatus, l3.l_shipdate, l3.l_commitdate, l3.l_receiptdate, l3.l_shipinstruct, l3.l_shipmode, l3.l_comment
+                                 Index Cond: (l3.l_orderkey = l1.l_orderkey)
+                                 Filter: ((l3.l_receiptdate > l3.l_commitdate) AND (l3.l_suppkey <> l1.l_suppkey))
+(46 rows)
+
+:query
+ s_name | numwait 
+--------+---------
+(0 rows)
+

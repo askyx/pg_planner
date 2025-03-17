@@ -1,0 +1,60 @@
+select query from tpch_queries(6); \gset
+                      query                       
+--------------------------------------------------
+ SELECT                                          +
+     sum(l_extendedprice * l_discount) AS revenue+
+ FROM                                            +
+     lineitem                                    +
+ WHERE                                           +
+     l_shipdate >= CAST('1994-01-01' AS date)    +
+     AND l_shipdate < CAST('1995-01-01' AS date) +
+     AND l_discount BETWEEN 0.05                 +
+     AND 0.07                                    +
+     AND l_quantity < 24;                        +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(6);
+  transform_query   
+--------------------
+ LogicalGbAgg      +
+ └── LogicalSelect +
+     └── LogicalGet+
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                                         QUERY PLAN                                                                                                         
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: sum((l_extendedprice * l_discount))
+   ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+         Output: l_discount, l_extendedprice
+         Filter: ((lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date) AND (lineitem.l_discount >= 0.05) AND (lineitem.l_discount <= 0.07) AND (lineitem.l_quantity < "numeric"(24)))
+ Optimizer: PGP
+(6 rows)
+
+:query
+ revenue 
+---------
+        
+(1 row)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                           QUERY PLAN                                                                                                           
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=8.18..8.19 rows=1 width=32)
+   Output: sum((l_extendedprice * l_discount))
+   ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.14..8.17 rows=1 width=36)
+         Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment
+         Index Cond: ((lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date) AND (lineitem.l_discount >= 0.05) AND (lineitem.l_discount <= 0.07) AND (lineitem.l_quantity < '24'::numeric))
+(5 rows)
+
+:query
+ revenue 
+---------
+        
+(1 row)
+

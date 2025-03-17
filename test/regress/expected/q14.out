@@ -1,0 +1,76 @@
+select query from tpch_queries(14); \gset
+                                  query                                  
+-------------------------------------------------------------------------
+ SELECT                                                                 +
+     100.00 * sum(                                                      +
+         CASE WHEN p_type LIKE 'PROMO%' THEN                            +
+             l_extendedprice * (1 - l_discount)                         +
+         ELSE                                                           +
+             0                                                          +
+         END) / sum(l_extendedprice * (1 - l_discount)) AS promo_revenue+
+ FROM                                                                   +
+     lineitem,                                                          +
+     part                                                               +
+ WHERE                                                                  +
+     l_partkey = p_partkey                                              +
+     AND l_shipdate >= date '1995-09-01'                                +
+     AND l_shipdate < CAST('1995-10-01' AS date);                       +
+ 
+(1 row)
+
+select transform_query(query) from tpch_queries(14);
+    transform_query     
+------------------------
+ LogicalGbAgg          +
+ └── LogicalJoin: INNER+
+     ├── LogicalGet    +
+     └── LogicalGet    +
+ 
+(1 row)
+
+set pg_planner.enable_planner to on;
+explain verbose :query
+                                                                                                                     QUERY PLAN                                                                                                                      
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=0.00..100.00 rows=1000 width=8)
+   Output: ((100.00 * sum(CASE WHEN ((part.p_type)::text ~~ 'PROMO%'::text) THEN (lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)) ELSE "numeric"(0) END)) / sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount))))
+   ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
+         Output: part.p_type, lineitem.l_extendedprice, lineitem.l_discount
+         Join Filter: (lineitem.l_partkey = part.p_partkey)
+         ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+               Output: lineitem.l_discount, lineitem.l_extendedprice, lineitem.l_partkey
+               Filter: ((lineitem.l_shipdate >= '09-01-1995'::date) AND (lineitem.l_shipdate < '10-01-1995'::date))
+         ->  Seq Scan on public.part  (cost=0.00..100.00 rows=1000 width=8)
+               Output: part.p_partkey, part.p_type
+ Optimizer: PGP
+(11 rows)
+
+:query
+ promo_revenue 
+---------------
+              
+(1 row)
+
+set pg_planner.enable_planner to off;
+explain verbose :query
+                                                                                                                                                                                    QUERY PLAN                                                                                                                                                                                    
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=16.45..16.46 rows=1 width=32)
+   Output: ((100.00 * sum(CASE WHEN ((part.p_type)::text ~~ 'PROMO%'::text) THEN (lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)) ELSE '0'::numeric END)) / sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount))))
+   ->  Nested Loop  (cost=0.29..16.43 rows=1 width=104)
+         Output: part.p_type, lineitem.l_extendedprice, lineitem.l_discount
+         Inner Unique: true
+         ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.14..8.16 rows=1 width=40)
+               Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+               Index Cond: ((lineitem.l_shipdate >= '09-01-1995'::date) AND (lineitem.l_shipdate < '10-01-1995'::date))
+         ->  Index Scan using part_pkey on public.part  (cost=0.14..8.16 rows=1 width=72)
+               Output: part.p_partkey, part.p_name, part.p_mfgr, part.p_brand, part.p_type, part.p_size, part.p_container, part.p_retailprice, part.p_comment
+               Index Cond: (part.p_partkey = lineitem.l_partkey)
+(11 rows)
+
+:query
+ promo_revenue 
+---------------
+              
+(1 row)
+
