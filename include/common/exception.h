@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <format>
 #include <stdexcept>
 
 extern "C" {
@@ -37,10 +36,10 @@ struct Exception : public std::runtime_error {
 
 #if PLAN_DEBUG
 #define PGP_ASSERT(condition, msg) \
-  do {                              \
-    if (!(condition)) {             \
-      throw OptException(msg);      \
-    }                               \
+  do {                             \
+    if (!(condition)) {            \
+      throw OptException(msg);     \
+    }                              \
   } while (0)
 #else
 #define PGP_ASSERT(condition, msg) ((void)0)

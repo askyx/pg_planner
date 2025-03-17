@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "pg_optimizer/property.h"
 
 namespace pgp {
@@ -12,7 +14,7 @@ class PropertySort : public Property {
 
   PropertyType Type() const override { return PropertyType::SORT; }
 
-  PropertySort *Copy() override;
+  std::shared_ptr<Property> Copy() override;
 
   hash_t Hash() const override;
 

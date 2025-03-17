@@ -9,8 +9,6 @@
 
 namespace pgp {
 
-#define GPOPT_INVALID_COST -0.5
-
 std::string OperatorNode::ToString() const {
   return content->ToString();
 }

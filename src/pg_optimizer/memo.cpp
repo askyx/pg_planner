@@ -12,8 +12,6 @@
 
 namespace pgp {
 
-#define GPOPT_MEMO_HT_BUCKETS 50000
-
 Memo::~Memo() {
   for (auto *group : groups_)
     delete group;

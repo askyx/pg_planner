@@ -18,15 +18,15 @@ extern "C" {
 namespace pgp {
 
 // Generate a comparison expression over an expression and a column
-ItemExprPtr CUtils::PexprScalarCmp(const ItemExprPtr &pexprLeft, ColRef *pcrRight, Oid mdid_op) {
+ItemExprPtr OperatorUtils::PexprScalarCmp(const ItemExprPtr &pexpr_left, ColRef *pcr_right, Oid mdid_op) {
   auto scalar_op = std::make_shared<ItemCmpExpr>(mdid_op);
-  scalar_op->AddChild(pexprLeft);
-  scalar_op->AddChild(std::make_shared<ItemIdent>(pcrRight));
+  scalar_op->AddChild(pexpr_left);
+  scalar_op->AddChild(std::make_shared<ItemIdent>(pcr_right));
   return scalar_op;
 }
 
 // generate a boolean scalar constant expression
-ItemExprPtr CUtils::PexprScalarConstBool(bool value, bool is_null) {
+ItemExprPtr OperatorUtils::PexprScalarConstBool(bool value, bool is_null) {
   // create a bool datum
   auto *datum = makeBoolConst(value, is_null);
 
@@ -34,7 +34,7 @@ ItemExprPtr CUtils::PexprScalarConstBool(bool value, bool is_null) {
 }
 
 // if predicate is True return logical expression, otherwise return a new select node
-OperatorNode *CUtils::PexprSafeSelect(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_pred) {
+OperatorNode *OperatorUtils::PexprSafeSelect(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_pred) {
   if (FScalarConstTrue(pexpr_pred)) {
     // caller must have add-refed the predicate before coming here
     return pexpr_logical;
@@ -56,23 +56,23 @@ bool FScalarConstBool(const ItemExprPtr &pexpr, bool value) {
 }
 
 // checks to see if the expression is a scalar const TRUE
-bool CUtils::FScalarConstTrue(const ItemExprPtr &pexpr) {
+bool OperatorUtils::FScalarConstTrue(const ItemExprPtr &pexpr) {
   return FScalarConstBool(pexpr, true);
 }
 
 // checks to see if the expression is a scalar const FALSE
-bool CUtils::FScalarConstFalse(const ItemExprPtr &pexpr) {
+bool OperatorUtils::FScalarConstFalse(const ItemExprPtr &pexpr) {
   return FScalarConstBool(pexpr, false);
 }
 
 // is the given expression a scalar bool op of the passed type?
-bool CUtils::FScalarBoolOp(const ItemExprPtr &pexpr, BoolExprType eboolop) {
+bool OperatorUtils::FScalarBoolOp(const ItemExprPtr &pexpr, BoolExprType eboolop) {
   return ExpressionKind::EopScalarBoolOp == pexpr->kind && eboolop == pexpr->Cast<ItemBoolExpr>().boolop;
 }
 
 // recursively collect conjuncts
 void CollectConjuncts(const ItemExprPtr &pexpr, ExprArray &pdrgpexpr) {
-  if (CUtils::FAnd(pexpr)) {
+  if (OperatorUtils::FAnd(pexpr)) {
     for (const auto &arg : pexpr->GetChildren())
       CollectConjuncts(arg, pdrgpexpr);
   } else {
@@ -81,7 +81,7 @@ void CollectConjuncts(const ItemExprPtr &pexpr, ExprArray &pdrgpexpr) {
 }
 
 // extract conjuncts from a predicate
-ExprArray CUtils::PdrgpexprConjuncts(const ItemExprPtr &pexpr) {
+ExprArray OperatorUtils::PdrgpexprConjuncts(const ItemExprPtr &pexpr) {
   ExprArray pdrgpexpr;
 
   CollectConjuncts(pexpr, pdrgpexpr);
@@ -90,88 +90,91 @@ ExprArray CUtils::PdrgpexprConjuncts(const ItemExprPtr &pexpr) {
 }
 
 // check if a conjunct/disjunct can be skipped
-bool FSkippable(const ItemExprPtr &pexpr, bool fConjunction) {
-  return ((fConjunction && CUtils::FScalarConstTrue(pexpr)) || (!fConjunction && CUtils::FScalarConstFalse(pexpr)));
+bool FSkippable(const ItemExprPtr &pexpr, bool f_conjunction) {
+  return ((f_conjunction && OperatorUtils::FScalarConstTrue(pexpr)) ||
+          (!f_conjunction && OperatorUtils::FScalarConstFalse(pexpr)));
 }
 
 // check if a conjunction/disjunction can be reduced to a constant
 // True/False based on the given conjunct/disjunct
-bool FReducible(const ItemExprPtr &pexpr, bool fConjunction) {
-  return ((fConjunction && CUtils::FScalarConstFalse(pexpr)) || (!fConjunction && CUtils::FScalarConstTrue(pexpr)));
+bool FReducible(const ItemExprPtr &pexpr, bool f_conjunction) {
+  return ((f_conjunction && OperatorUtils::FScalarConstFalse(pexpr)) ||
+          (!f_conjunction && OperatorUtils::FScalarConstTrue(pexpr)));
 }
 
 // create conjunction/disjunction from array of components; Takes ownership over the given array of expressions
-ItemExprPtr CUtils::PexprConjDisj(const ExprArray &pdrgpexpr, bool fConjunction) {
+ItemExprPtr OperatorUtils::PexprConjDisj(const ExprArray &pdrgpexpr, bool f_conjunction) {
   auto eboolop = AND_EXPR;
-  if (!fConjunction) {
+  if (!f_conjunction) {
     eboolop = OR_EXPR;
   }
 
-  ExprArray pdrgpexprFinal;
+  ExprArray pdrgpexpr_final;
 
   for (const auto &pexpr : pdrgpexpr) {
-    if (FSkippable(pexpr, fConjunction)) {
+    if (FSkippable(pexpr, f_conjunction)) {
       // skip current conjunct/disjunct
       continue;
     }
 
-    if (FReducible(pexpr, fConjunction)) {
+    if (FReducible(pexpr, f_conjunction)) {
       // a False (True) conjunct (disjunct) yields the whole conjunction (disjunction) False (True)
 
-      return CUtils::PexprScalarConstBool(!fConjunction);
+      return OperatorUtils::PexprScalarConstBool(!f_conjunction);
     }
 
     // add conjunct/disjunct to result array
-    pdrgpexprFinal.emplace_back(pexpr);
+    pdrgpexpr_final.emplace_back(pexpr);
   }
 
   // assemble result
   ItemExprPtr pexpr_result = nullptr;
-  if (0 < pdrgpexprFinal.size()) {
-    if (1 == pdrgpexprFinal.size()) {
-      pexpr_result = pdrgpexprFinal[0];
+  if (0 < pdrgpexpr_final.size()) {
+    if (1 == pdrgpexpr_final.size()) {
+      pexpr_result = pdrgpexpr_final[0];
 
       return pexpr_result;
     }
 
     auto bool_op = std::make_shared<ItemBoolExpr>(eboolop);
-    bool_op->children = (pdrgpexprFinal);
+    bool_op->children = (pdrgpexpr_final);
     return bool_op;
   }
 
-  return CUtils::PexprScalarConstBool(fConjunction);
+  return OperatorUtils::PexprScalarConstBool(f_conjunction);
 }
 
-ItemExprPtr CUtils::PexprConjunction(const ExprArray &pdrgpexpr) {
+ItemExprPtr OperatorUtils::PexprConjunction(const ExprArray &pdrgpexpr) {
   return PexprConjDisj(pdrgpexpr, true);
 }
 
 // create a conjunction/disjunction of two components; Does *not* take ownership over given expressions
-ItemExprPtr CUtils::PexprConjDisj(const ItemExprPtr &pexprOne, const ItemExprPtr &pexprTwo, bool fConjunction) {
-  if (pexprOne == nullptr)
-    return pexprTwo;
-  if (pexprTwo == nullptr)
-    return pexprOne;
+ItemExprPtr OperatorUtils::PexprConjDisj(const ItemExprPtr &pexpr_one, const ItemExprPtr &pexpr_two,
+                                         bool f_conjunction) {
+  if (pexpr_one == nullptr)
+    return pexpr_two;
+  if (pexpr_two == nullptr)
+    return pexpr_one;
 
-  if (pexprOne == pexprTwo) {
-    return pexprOne;
+  if (pexpr_one == pexpr_two) {
+    return pexpr_one;
   }
 
-  auto pdrgpexpr = PdrgpexprConjuncts(pexprOne);
-  auto pdrgpexpr_two = PdrgpexprConjuncts(pexprTwo);
+  auto pdrgpexpr = PdrgpexprConjuncts(pexpr_one);
+  auto pdrgpexpr_two = PdrgpexprConjuncts(pexpr_two);
 
   pdrgpexpr.insert(pdrgpexpr.begin(), pdrgpexpr_two.begin(), pdrgpexpr_two.end());
 
-  return PexprConjDisj(pdrgpexpr, fConjunction);
+  return PexprConjDisj(pdrgpexpr, f_conjunction);
 }
 
 // create a conjunction of two components;
-ItemExprPtr CUtils::PexprConjunction(const ItemExprPtr &pexprOne, const ItemExprPtr &pexprTwo) {
-  return PexprConjDisj(pexprOne, pexprTwo, true);
+ItemExprPtr OperatorUtils::PexprConjunction(const ItemExprPtr &pexpr_one, const ItemExprPtr &pexpr_two) {
+  return PexprConjDisj(pexpr_one, pexpr_two, true);
 }
 
 // is the given expression in the form (expr Is NOT DISTINCT FROM expr)
-bool CUtils::FINDF(const ItemExprPtr &pexpr) {
+bool OperatorUtils::FINDF(const ItemExprPtr &pexpr) {
   if (FNot(pexpr)) {
     return pexpr->GetChild(0)->kind == ExpressionKind::EopScalarIsDistinctFrom;
   }

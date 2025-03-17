@@ -7,7 +7,7 @@
 
 namespace pgp {
 
-GroupExpression *PropertyEnforcer::EnforceProperty(GroupExpression *gexpr, Property *property) {
+GroupExpression *PropertyEnforcer::EnforceProperty(GroupExpression *gexpr, const std::shared_ptr<Property> &property) {
   input_gexpr_ = gexpr;
 
   switch (property->Type()) {

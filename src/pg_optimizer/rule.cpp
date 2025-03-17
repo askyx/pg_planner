@@ -22,21 +22,19 @@ RulePromise Rule::Promise(GroupExpression* group_expr) const {
 }
 
 RuleSet::RuleSet() {
-  Add(new CXformInnerJoinCommutativity());
+  Add(new InnerJoinCommutativityRule());
 
-  Add(new CXformProject2ComputeScalar());
-  Add(new CXformGet2TableScan());
-  Add(new CXformSelect2Filter());
-
-  Add(new CXformJoin2NLJoin());
-  Add(new CXformJoin2HashJoin());
-
-  Add(new CXformGbAgg2HashAgg());
-  Add(new CXformGbAgg2StreamAgg());
-  Add(new CXformGbAgg2ScalarAgg());
-  Add(new CXformImplementLimit());
-  Add(new CXformImplementApply());
-  Add(new CXformImplementInnerJoin());
+  Add(new Project2ComputeScalarRule());
+  Add(new Get2TableScan());
+  Add(new Select2Filter());
+  Add(new Join2NestedLoopJoin());
+  Add(new Join2HashJoin());
+  Add(new GbAgg2HashAgg());
+  Add(new GbAgg2StreamAgg());
+  Add(new GbAgg2ScalarAgg());
+  Add(new ImplementLimit());
+  Add(new ImplementApply());
+  Add(new ImplementInnerJoin());
 }
 
 RuleSet::~RuleSet() {

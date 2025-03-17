@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <memory>
 #include <typeinfo>
 #include <vector>
 
@@ -17,7 +19,7 @@ class Property {
 
   virtual PropertyType Type() const = 0;
 
-  virtual Property *Copy() = 0;
+  virtual std::shared_ptr<Property> Copy() = 0;
 
   virtual hash_t Hash() const {
     PropertyType t = Type();
@@ -41,36 +43,32 @@ class PropertySet {
  public:
   PropertySet() = default;
 
-  ~PropertySet() {
-    for (auto *prop : properties_) {
-      delete prop;
-    }
-  }
+  ~PropertySet() = default;
 
-  PropertySet *Copy() {
-    std::vector<Property *> props;
+  std::shared_ptr<PropertySet> Copy() {
+    std::vector<std::shared_ptr<Property>> props;
     props.reserve(properties_.size());
-    for (auto *prop : properties_) {
+    for (const auto &prop : properties_) {
       props.push_back(prop->Copy());
     }
 
-    return new PropertySet(props);
+    return std::make_shared<PropertySet>(props);
   }
 
-  explicit PropertySet(std::vector<Property *> properties) : properties_(std::move(properties)) {}
+  explicit PropertySet(std::vector<std::shared_ptr<Property>> properties) : properties_(std::move(properties)) {}
 
-  const std::vector<Property *> &Properties() const { return properties_; }
+  const std::vector<std::shared_ptr<Property>> &Properties() const { return properties_; }
 
-  void AddProperty(Property *property);
+  void AddProperty(const std::shared_ptr<Property> &property);
 
-  const Property *GetPropertyOfType(PropertyType type) const;
+  const std::shared_ptr<Property> GetPropertyOfType(PropertyType type) const;
 
   template <typename T>
-  const T *GetPropertyOfTypeAs(PropertyType type) const {
-    const auto *property = GetPropertyOfType(type);
+  const T &GetPropertyOfTypeAs(PropertyType type) const {
+    const auto &property = GetPropertyOfType(type);
     if (property)
-      return property->As<T>();
-    return nullptr;
+      return *property->As<T>();
+    throw std::runtime_error("Property not found");
   }
 
   hash_t Hash() const;
@@ -84,21 +82,17 @@ class PropertySet {
   std::string ToString() const;
 
  private:
-  std::vector<Property *> properties_;
+  std::vector<std::shared_ptr<Property>> properties_;
 };
 
 struct PropertySetHasher {
-  using argument_type = pgp::PropertySet;
-
-  using result_type = std::size_t;
-
-  result_type operator()(argument_type const *s) const { return s->Hash(); }
+  std::size_t operator()(std::shared_ptr<pgp::PropertySet> const &s) const { return s->Hash(); }
 };
 
 struct PropertySetEqer {
-  using argument_type = pgp::PropertySet;
-
-  bool operator()(argument_type const *s1, argument_type const *s2) const { return *s1 == *s2; }
+  bool operator()(std::shared_ptr<pgp::PropertySet> const &s1, std::shared_ptr<pgp::PropertySet> const &s2) const {
+    return *s1 == *s2;
+  }
 };
 
 }  // namespace pgp

@@ -11,7 +11,7 @@ struct QueryInfo {
   pgp::OperatorNode *expr;
   std::vector<std::string> output_col_names;
   pgp::ColRefArray output_array;
-  PropertySet *properties;
+  std::shared_ptr<PropertySet> properties;
 
   QueryInfo &Normalizer();
 

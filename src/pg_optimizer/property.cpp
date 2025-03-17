@@ -2,7 +2,7 @@
 
 namespace pgp {
 
-void PropertySet::AddProperty(Property *property) {
+void PropertySet::AddProperty(const std::shared_ptr<Property> &property) {
   auto iter = properties_.begin();
   for (; iter != properties_.end(); iter++) {
     // Iterate until point where preserve descending order
@@ -14,7 +14,7 @@ void PropertySet::AddProperty(Property *property) {
   properties_.insert(iter, property);
 }
 
-const Property *PropertySet::GetPropertyOfType(PropertyType type) const {
+const std::shared_ptr<Property> PropertySet::GetPropertyOfType(PropertyType type) const {
   for (const auto &prop : properties_) {
     if (prop->Type() == type) {
       return prop;
@@ -25,7 +25,7 @@ const Property *PropertySet::GetPropertyOfType(PropertyType type) const {
 }
 
 bool PropertySet::HasProperty(const Property &r_property) const {
-  for (auto *property : properties_) {
+  for (const auto &property : properties_) {
     if (*property >= r_property) {
       return true;
     }
@@ -35,7 +35,7 @@ bool PropertySet::HasProperty(const Property &r_property) const {
 }
 
 bool PropertySet::operator>=(const PropertySet &r) const {
-  for (auto *r_property : r.properties_) {
+  for (const auto &r_property : r.properties_) {
     if (!HasProperty(*r_property))
       return false;
   }
@@ -56,7 +56,7 @@ hash_t PropertySet::Hash() const {
 
 std::string PropertySet::ToString() const {
   std::string res = "PropertySet: ";
-  for (auto *prop : properties_) {
+  for (const auto &prop : properties_) {
     res += prop->ToString() + ", ";
   }
   res.pop_back();

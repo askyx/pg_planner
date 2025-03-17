@@ -1,10 +1,7 @@
 #include "pg_optimizer/cost_model.h"
 
 #include <cmath>
-#include <numeric>
 
-#include "pg_operator/operator_node.h"
-#include "pg_operator/physical_operator.h"
 #include "pg_optimizer/group.h"
 #include "pg_optimizer/group_expression.h"
 

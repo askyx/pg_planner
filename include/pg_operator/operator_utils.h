@@ -11,10 +11,10 @@ class Memo;
 class LogicalOperator;
 class LogicalGbAgg;
 
-class CUtils {
+class OperatorUtils {
  public:
   // generate a comparison expression for an expression and a column reference
-  static ItemExprPtr PexprScalarCmp(const ItemExprPtr &pexprLeft, ColRef *pcrRight, Oid mdid_op);
+  static ItemExprPtr PexprScalarCmp(const ItemExprPtr &pexpr_left, ColRef *pcr_right, Oid mdid_op);
 
   // if predicate is True return logical expression, otherwise return a new select node
   static OperatorNode *PexprSafeSelect(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_predicate);
@@ -35,29 +35,29 @@ class CUtils {
   static bool FINDF(const ItemExprPtr &pexpr);
 
   // is the given expression an AND
-  static bool FAnd(ItemExprPtr pexpr) { return CUtils::FScalarBoolOp(pexpr, AND_EXPR); }
+  static bool FAnd(const ItemExprPtr &pexpr) { return OperatorUtils::FScalarBoolOp(pexpr, AND_EXPR); }
 
   // is the given expression an OR
-  static bool FOr(ItemExprPtr pexpr) { return CUtils::FScalarBoolOp(pexpr, OR_EXPR); }
+  static bool FOr(const ItemExprPtr &pexpr) { return OperatorUtils::FScalarBoolOp(pexpr, OR_EXPR); }
 
   // does the given expression have any NOT children?
   // is the given expression a NOT
-  static bool FNot(ItemExprPtr pexpr) { return CUtils::FScalarBoolOp(pexpr, NOT_EXPR); }
+  static bool FNot(const ItemExprPtr &pexpr) { return OperatorUtils::FScalarBoolOp(pexpr, NOT_EXPR); }
 
   // extract conjuncts from a scalar tree
   static ExprArray PdrgpexprConjuncts(const ItemExprPtr &pexpr);
 
   // create conjunction/disjunction
-  static ItemExprPtr PexprConjDisj(const ExprArray &Pdrgpexpr, bool fConjunction);
+  static ItemExprPtr PexprConjDisj(const ExprArray &pdrgpexpr, bool f_conjunction);
 
   // create conjunction/disjunction of two expressions
-  static ItemExprPtr PexprConjDisj(const ItemExprPtr &pexprOne, const ItemExprPtr &pexprTwo, bool fConjunction);
+  static ItemExprPtr PexprConjDisj(const ItemExprPtr &pexpr_one, const ItemExprPtr &pexpr_two, bool f_conjunction);
 
   // create conjunction
   static ItemExprPtr PexprConjunction(const ExprArray &pdrgpexpr);
 
   // create conjunction of two expressions
-  static ItemExprPtr PexprConjunction(const ItemExprPtr &pexprOne, const ItemExprPtr &pexprTwo);
+  static ItemExprPtr PexprConjunction(const ItemExprPtr &pexpr_one, const ItemExprPtr &pexpr_two);
 };
 
 }  // namespace pgp

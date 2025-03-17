@@ -1,8 +1,8 @@
 #pragma once
 
-#include "pg_operator/item_expr.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/group_expression.h"
+#include "pg_optimizer/operator_prop.h"
 
 namespace pgp {
 

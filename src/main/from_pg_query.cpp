@@ -112,7 +112,7 @@ OperatorNode *TranslatorQuery::TranslateSelect() {
       pos->AddSortElement({sort_group_clause->sortop, colref,
                            sort_group_clause->nulls_first ? NullsOrder::EnullsFirst : NullsOrder::EnullsLast});
     }
-    property_set_->AddProperty(new PropertySort(pos));
+    property_set_->AddProperty(std::make_shared<PropertySort>(pos));
   }
 
   // TODO: check if limit 0, retrurn empty result set at once
@@ -153,12 +153,12 @@ OperatorNode *TranslatorQuery::TranslateNode(FromExpr *from_expr) {
   else {
     auto *outer = TranslateNode(linitial_node(Node, from_expr->fromlist));
     auto *inner = TranslateNode(lsecond_node(Node, from_expr->fromlist));
-    root =
-        new OperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, CUtils::PexprScalarConstBool(true)), {outer, inner});
+    root = new OperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, OperatorUtils::PexprScalarConstBool(true)),
+                            {outer, inner});
 
     ListCell *arg;
     for_each_from(arg, from_expr->fromlist, 2) {
-      root = new OperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, CUtils::PexprScalarConstBool(true)),
+      root = new OperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, OperatorUtils::PexprScalarConstBool(true)),
                               {root, TranslateNode(lfirst_node(Node, arg))});
     }
   }
@@ -171,7 +171,7 @@ OperatorNode *TranslatorQuery::TranslateNode(FromExpr *from_expr) {
     }
   } else {
     if (nullptr == condition_node)
-      condition_node = CUtils::PexprScalarConstBool(true);
+      condition_node = OperatorUtils::PexprScalarConstBool(true);
 
     auto *cnode = root;
     while (cnode->content->kind == OperatorType::LogicalApply &&
@@ -276,7 +276,7 @@ OperatorNode *TranslatorQuery::TranslateNode(JoinExpr *join_expr) {
   if (nullptr != join_expr->quals)
     join_node->filter = TranslateExpr((Expr *)join_expr->quals, &root);
   else
-    join_node->filter = CUtils::PexprScalarConstBool(true);
+    join_node->filter = OperatorUtils::PexprScalarConstBool(true);
 
   auto rtindex = join_expr->rtindex;
   auto *rte = rt_fetch(rtindex, query_->rtable);
@@ -568,7 +568,7 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
       auto *colref = output_array[0];
 
       auto apply = std::make_shared<LogicalApply>(output_array, SubQueryType::EXPR_SUBLINK,
-                                                  pgp::CUtils::PexprScalarConstBool(true));
+                                                  pgp::OperatorUtils::PexprScalarConstBool(true));
       *root = new OperatorNode(apply, {*root, subquery_node});
 
       return std::make_shared<ItemIdent>(colref);
@@ -592,7 +592,8 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
 
       Expr *lhs_expr = (Expr *)list_nth(op_expr->args, 0);
 
-      auto pexpr_predicate = CUtils::PexprScalarCmp(TranslateExpr(lhs_expr, root), output_array[0], op_expr->opno);
+      auto pexpr_predicate =
+          OperatorUtils::PexprScalarCmp(TranslateExpr(lhs_expr, root), output_array[0], op_expr->opno);
 
       auto apply = std::make_shared<LogicalApply>(
           output_array, sublink->subLinkType == ALL_SUBLINK ? SubQueryType::ALL_SUBLINK : SubQueryType::ANY_SUBLINK,
@@ -602,7 +603,7 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
 
       *root = new OperatorNode(apply, {*root, subquery_node});
 
-      return CUtils::PexprScalarConstBool(true);
+      return OperatorUtils::PexprScalarConstBool(true);
     }
 
     case EXISTS_SUBLINK: {
@@ -613,11 +614,11 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
 
       ColRefArray colrefs = {query_translator.GetQueryOutputCols().front()};
       auto apply = std::make_shared<LogicalApply>(colrefs, SubQueryType::EXISTS_SUBLINK,
-                                                  pgp::CUtils::PexprScalarConstBool(true));
+                                                  pgp::OperatorUtils::PexprScalarConstBool(true));
       apply->is_not_subquery = under_not;
       *root = new OperatorNode(apply, {*root, subquery_node});
 
-      return CUtils::PexprScalarConstBool(true);
+      return OperatorUtils::PexprScalarConstBool(true);
     }
 
     default: {

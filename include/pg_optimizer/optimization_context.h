@@ -1,8 +1,8 @@
 #pragma once
 
-#include "pg_optimizer/property.h"
+#include <utility>
 
-#define GPOPT_INVALID_OPTCTXT_ID UINT32_MAX
+#include "pg_optimizer/property.h"
 
 namespace pgp {
 
@@ -17,12 +17,12 @@ class OptimizationContext {
 
   OptimizerContext *context_;
 
-  PropertySet *property_set_;
+  std::shared_ptr<PropertySet> property_set_;
 
  public:
-  PropertySet *GetRequiredProperties() const { return property_set_; }
+  std::shared_ptr<PropertySet> GetRequiredProperties() const { return property_set_; }
 
-  explicit OptimizationContext(PropertySet *prpp) : property_set_(prpp) {}
+  explicit OptimizationContext(std::shared_ptr<PropertySet> prpp) : property_set_(std::move(prpp)) {}
 
   double GetCostUpperBound() const { return cost_upper_bound_; }
 

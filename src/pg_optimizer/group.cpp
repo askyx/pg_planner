@@ -2,8 +2,8 @@
 
 #include "pg_optimizer/group.h"
 
-#include "pg_operator/operator.h"
 #include "pg_optimizer/group_expression.h"
+#include "pg_optimizer/operator_prop.h"
 #include "pg_optimizer/optimization_context.h"
 
 namespace pgp {
@@ -32,7 +32,7 @@ void Group::AddExpression(GroupExpression *gexpr, bool force_gexpr) {
     physical_expressions_.emplace_back(gexpr);
 }
 
-GroupExpression *Group::GetBestExpression(PropertySet *properties) {
+GroupExpression *Group::GetBestExpression(const std::shared_ptr<PropertySet> &properties) {
   auto it = lowest_cost_expressions_.find(properties);
   if (it != lowest_cost_expressions_.end()) {
     return std::get<1>(it->second);
@@ -41,7 +41,7 @@ GroupExpression *Group::GetBestExpression(PropertySet *properties) {
   return nullptr;
 }
 
-bool Group::SetExpressionCost(GroupExpression *expr, double cost, PropertySet *properties) {
+bool Group::SetExpressionCost(GroupExpression *expr, double cost, const std::shared_ptr<PropertySet> &properties) {
   auto it = lowest_cost_expressions_.find(properties);
   if (it == lowest_cost_expressions_.end()) {
     // not exist so insert
@@ -52,11 +52,9 @@ bool Group::SetExpressionCost(GroupExpression *expr, double cost, PropertySet *p
   if (std::get<0>(it->second) > cost) {
     // this is lower cost
     lowest_cost_expressions_[properties] = std::make_tuple(cost, expr);
-    delete properties;
     return true;
   }
 
-  delete properties;
   return false;
 }
 

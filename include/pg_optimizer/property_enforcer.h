@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 namespace pgp {
 
 class Property;
@@ -8,7 +9,7 @@ class GroupExpression;
 
 class PropertyEnforcer {
  public:
-  GroupExpression *EnforceProperty(GroupExpression *gexpr, Property *property);
+  GroupExpression *EnforceProperty(GroupExpression *gexpr, const std::shared_ptr<Property> &property);
 
   void EnforceSortProperty(const PropertySort *prop_sort);
 

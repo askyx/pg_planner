@@ -26,7 +26,8 @@ class GroupExpression {
 
   std::bitset<static_cast<uint32_t>(RuleType::ExfSentinel)> rule_mask_;
 
-  std::unordered_map<PropertySet *, std::tuple<double, std::vector<PropertySet *>>, PropertySetHasher, PropertySetEqer>
+  std::unordered_map<std::shared_ptr<PropertySet>, std::tuple<double, std::vector<std::shared_ptr<PropertySet>>>,
+                     PropertySetHasher, PropertySetEqer>
       lowest_cost_table_;
 
  public:
@@ -35,14 +36,16 @@ class GroupExpression {
   GroupExpression(std::shared_ptr<Operator> pop, const std::vector<Group *> &pdrgpgroup)
       : content(std::move(pop)), children_(pdrgpgroup) {}
 
-  double GetCost(PropertySet *requirements) const { return std::get<0>(lowest_cost_table_.find(requirements)->second); }
+  double GetCost(const std::shared_ptr<PropertySet> &requirements) const {
+    return std::get<0>(lowest_cost_table_.find(requirements)->second);
+  }
 
-  std::vector<PropertySet *> GetInputProperties(PropertySet *required) const {
+  std::vector<std::shared_ptr<PropertySet>> GetInputProperties(const std::shared_ptr<PropertySet> &required) const {
     return std::get<1>(lowest_cost_table_.find(required)->second);
   }
 
-  void SetLocalHashTable(PropertySet *output_properties, const std::vector<PropertySet *> &input_properties_list,
-                         double cost);
+  void SetLocalHashTable(const std::shared_ptr<PropertySet> &output_properties,
+                         const std::vector<std::shared_ptr<PropertySet>> &input_properties_list, double cost);
 
   const std::vector<Group *> &GetChildGroup() { return children_; }
 

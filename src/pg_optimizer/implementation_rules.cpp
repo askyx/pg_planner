@@ -19,26 +19,26 @@ extern "C" {
 
 namespace pgp {
 
-CXformGet2TableScan::CXformGet2TableScan() {
+Get2TableScan::Get2TableScan() {
   match_pattern_ = new Pattern(OperatorType::LogicalGet);
   rule_type_ = ExfGet2TableScan;
 }
 
-void CXformGet2TableScan::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void Get2TableScan::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pop_get = pexpr->Cast<LogicalGet>();
 
   pxfres.emplace_back(new OperatorNode(
       std::make_shared<PhysicalScan>(pop_get.table_desc, pop_get.output_columns, pop_get.colid2attno, pop_get.filter)));
 }
 
-CXformImplementLimit::CXformImplementLimit() {
+ImplementLimit::ImplementLimit() {
   match_pattern_ = new Pattern(OperatorType::LogicalLimit);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
 
   rule_type_ = ExfImplementLimit;
 }
 
-void CXformImplementLimit::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void ImplementLimit::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pop_limit = pexpr->Cast<LogicalLimit>();
 
   auto *pexpr_limit = new OperatorNode(
@@ -47,13 +47,13 @@ void CXformImplementLimit::Transform(std::vector<OperatorNode *> &pxfres, Operat
   pxfres.emplace_back(pexpr_limit);
 }
 
-CXformSelect2Filter::CXformSelect2Filter() {
+Select2Filter::Select2Filter() {
   match_pattern_ = new Pattern(OperatorType::LogicalSelect);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfSelect2Filter;
 }
 
-void CXformSelect2Filter::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void Select2Filter::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pexpr_select = pexpr->Cast<LogicalFilter>();
 
   auto *pexpr_filter = new OperatorNode(std::make_shared<PhysicalFilter>(pexpr_select.filter), pexpr->children);
@@ -61,13 +61,13 @@ void CXformSelect2Filter::Transform(std::vector<OperatorNode *> &pxfres, Operato
   pxfres.emplace_back(pexpr_filter);
 }
 
-CXformProject2ComputeScalar::CXformProject2ComputeScalar() {
+Project2ComputeScalarRule::Project2ComputeScalarRule() {
   match_pattern_ = new Pattern(OperatorType::LogicalProject);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfProject2ComputeScalar;
 }
 
-void CXformProject2ComputeScalar::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void Project2ComputeScalarRule::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &project = pexpr->Cast<LogicalProject>();
   auto *pexpr_compute_scalar =
       new OperatorNode(std::make_shared<PhysicalComputeScalar>(project.project_exprs), pexpr->children);
@@ -84,7 +84,7 @@ static void ImplementHashJoin(std::vector<OperatorNode *> &pxfres, OperatorNode 
   OperatorNode *pexpr_inner = pexpr->GetChild(1);
   auto pexpr_scalar = logical_join.filter;
 
-  for (const auto &pexpr_pred : CUtils::PdrgpexprConjuncts(pexpr_scalar)) {
+  for (const auto &pexpr_pred : OperatorUtils::PdrgpexprConjuncts(pexpr_scalar)) {
     if (PhysicalJoin::FHashJoinCompatible(pexpr_pred, pexpr_outer, pexpr_inner)) {
       ItemExprPtr pexpr_pred_inner;
       ItemExprPtr pexpr_pred_outer;
@@ -103,19 +103,19 @@ static void ImplementHashJoin(std::vector<OperatorNode *> &pxfres, OperatorNode 
   }
 }
 
-CXformImplementInnerJoin::CXformImplementInnerJoin() {
+ImplementInnerJoin::ImplementInnerJoin() {
   match_pattern_ = new Pattern(OperatorType::LogicalJoin);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfImplementInnerJoin;
 }
 
-bool CXformImplementInnerJoin::Check(GroupExpression *gexpr) const {
+bool ImplementInnerJoin::Check(GroupExpression *gexpr) const {
   const auto &logical_join = gexpr->Pop()->Cast<LogicalJoin>();
   return logical_join.join_type == JOIN_INNER;
 }
 
-void CXformImplementInnerJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void ImplementInnerJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
   ImplementHashJoin(pxfres, pexpr, JOIN_INNER);
 
@@ -124,18 +124,18 @@ void CXformImplementInnerJoin::Transform(std::vector<OperatorNode *> &pxfres, Op
   pxfres.emplace_back(pexpr_binary);
 }
 
-CXformGbAgg2HashAgg::CXformGbAgg2HashAgg() {
+GbAgg2HashAgg::GbAgg2HashAgg() {
   match_pattern_ = new Pattern(OperatorType::LogicalGbAgg);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfGbAgg2HashAgg;
 }
 
-bool CXformGbAgg2HashAgg::Check(GroupExpression *gexpr) const {
+bool GbAgg2HashAgg::Check(GroupExpression *gexpr) const {
   const auto &pop_agg = gexpr->Pop()->Cast<LogicalGbAgg>();
   return !pop_agg.group_columns.empty();
 }
 
-void CXformGbAgg2HashAgg::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void GbAgg2HashAgg::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
   if (pop_agg.project_exprs.empty())
     return;
@@ -146,17 +146,17 @@ void CXformGbAgg2HashAgg::Transform(std::vector<OperatorNode *> &pxfres, Operato
   pxfres.emplace_back(pexpr_alt);
 }
 
-CXformGbAgg2ScalarAgg::CXformGbAgg2ScalarAgg() {
+GbAgg2ScalarAgg::GbAgg2ScalarAgg() {
   match_pattern_ = new Pattern(OperatorType::LogicalGbAgg);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfGbAgg2ScalarAgg;
 }
 
-bool CXformGbAgg2ScalarAgg::Check(GroupExpression *gexpr) const {
+bool GbAgg2ScalarAgg::Check(GroupExpression *gexpr) const {
   return 0 >= gexpr->Pop()->Cast<LogicalGbAgg>().group_columns.size();
 }
 
-void CXformGbAgg2ScalarAgg::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void GbAgg2ScalarAgg::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
 
   auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalScalarAgg>(pop_agg.group_columns, pop_agg.project_exprs),
@@ -165,18 +165,18 @@ void CXformGbAgg2ScalarAgg::Transform(std::vector<OperatorNode *> &pxfres, Opera
   pxfres.emplace_back(pexpr_alt);
 }
 
-CXformGbAgg2StreamAgg::CXformGbAgg2StreamAgg() {
+GbAgg2StreamAgg::GbAgg2StreamAgg() {
   match_pattern_ = new Pattern(OperatorType::LogicalGbAgg);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfGbAgg2StreamAgg;
 }
 
-bool CXformGbAgg2StreamAgg::Check(GroupExpression *gexpr) const {
+bool GbAgg2StreamAgg::Check(GroupExpression *gexpr) const {
   const auto &pop_agg = gexpr->Pop()->Cast<LogicalGbAgg>();
   return 0 != pop_agg.group_columns.size();
 }
 
-void CXformGbAgg2StreamAgg::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void GbAgg2StreamAgg::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
 
   auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalStreamAgg>(pop_agg.group_columns, pop_agg.project_exprs),
@@ -185,14 +185,14 @@ void CXformGbAgg2StreamAgg::Transform(std::vector<OperatorNode *> &pxfres, Opera
   pxfres.emplace_back(pexpr_alt);
 }
 
-CXformJoin2NLJoin::CXformJoin2NLJoin() {
+Join2NestedLoopJoin::Join2NestedLoopJoin() {
   match_pattern_ = new Pattern(OperatorType::LogicalJoin);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfJoin2NLJoin;
 }
 
-bool CXformJoin2NLJoin::Check(GroupExpression *gexpr) const {
+bool Join2NestedLoopJoin::Check(GroupExpression *gexpr) const {
   const auto &pop_join = gexpr->Pop()->Cast<LogicalJoin>();
 
   if (auto join_type = pop_join.join_type;
@@ -202,7 +202,7 @@ bool CXformJoin2NLJoin::Check(GroupExpression *gexpr) const {
   return true;
 }
 
-void CXformJoin2NLJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void Join2NestedLoopJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
 
   auto *pexpr_binary =
@@ -211,14 +211,14 @@ void CXformJoin2NLJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorN
   pxfres.emplace_back(pexpr_binary);
 }
 
-CXformJoin2HashJoin::CXformJoin2HashJoin() {
+Join2HashJoin::Join2HashJoin() {
   match_pattern_ = new Pattern(OperatorType::LogicalJoin);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfJoin2HashJoin;
 }
 
-void CXformJoin2HashJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void Join2HashJoin::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
 
   ExprArray pdrgpexpr_outer;
@@ -227,7 +227,7 @@ void CXformJoin2HashJoin::Transform(std::vector<OperatorNode *> &pxfres, Operato
   OperatorNode *pexpr_inner = pexpr->GetChild(1);
   auto pexpr_scalar = logical_join.filter;
 
-  for (const auto &pexpr_pred : CUtils::PdrgpexprConjuncts(pexpr_scalar)) {
+  for (const auto &pexpr_pred : OperatorUtils::PdrgpexprConjuncts(pexpr_scalar)) {
     if (PhysicalJoin::FHashJoinCompatible(pexpr_pred, pexpr_outer, pexpr_inner)) {
       ItemExprPtr pexpr_pred_inner;
       ItemExprPtr pexpr_pred_outer;
@@ -248,7 +248,7 @@ void CXformJoin2HashJoin::Transform(std::vector<OperatorNode *> &pxfres, Operato
   }
 }
 
-CXformImplementApply::CXformImplementApply() {
+ImplementApply::ImplementApply() {
   match_pattern_ = new Pattern(OperatorType::LogicalApply);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
@@ -256,7 +256,7 @@ CXformImplementApply::CXformImplementApply() {
   rule_type_ = ExfImplementApply;
 }
 
-void CXformImplementApply::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
+void ImplementApply::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
   const auto &pop_apply = pexpr->Cast<LogicalApply>();
 
   auto *pexpr_physical_apply =

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 
 #include "common/hash_util.h"
@@ -71,7 +72,7 @@ class TranslatorQuery {
 
   ColRefArray col_ref_;
 
-  PropertySet *property_set_{new PropertySet()};
+  std::shared_ptr<PropertySet> property_set_{std::make_shared<PropertySet>()};
 
  public:
   DISALLOW_COPY_AND_MOVE(TranslatorQuery)
@@ -102,6 +103,6 @@ class TranslatorQuery {
 
   ColRefArray GetQueryOutputCols() const { return col_ref_; }
 
-  PropertySet *GetPropertySet() const { return property_set_; }
+  std::shared_ptr<PropertySet> GetPropertySet() const { return property_set_; }
 };
 }  // namespace pgp

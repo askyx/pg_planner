@@ -1,8 +1,6 @@
 #include "pg_optimizer/optimizer.h"
 
 #include <cstdint>
-#include <iostream>
-#include <ostream>
 #include <vector>
 
 #include "common/config.h"
@@ -130,7 +128,8 @@ Group *Optimizer::OptimizePlan(QueryInfo &query_info) {
   return root_group;
 }
 
-PlanMeta GetPlanTrere(Group *root, PropertySet *prop, const ColRefArray &output_array, PlanGenerator &generator) {
+PlanMeta GetPlanTrere(Group *root, const std::shared_ptr<PropertySet> &prop, const ColRefArray &output_array,
+                      PlanGenerator &generator) {
   auto *gexpr = root->GetBestExpression(prop);
   PGP_ASSERT(gexpr, "no plan found");
 
@@ -149,7 +148,7 @@ PlanMeta GetPlanTrere(Group *root, PropertySet *prop, const ColRefArray &output_
 
   for (auto i = 0; i < gexpr->GetChildGroup().size(); i++) {
     auto *child = gexpr->GetChildGroup()[i];
-    auto *child_prop = required_inputs[i];
+    auto child_prop = required_inputs[i];
 
     if (i == 1 && !upper_res_cols.empty())
       generator.upper_res_cols = upper_res_cols;

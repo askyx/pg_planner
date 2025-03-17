@@ -153,17 +153,9 @@ class OptimizeExpressionCostWithEnforcedProperty : public OptimizerTask {
 
   void Execute() override;
 
-  ~OptimizeExpressionCostWithEnforcedProperty() override {
-    for (auto& pair : output_input_properties_) {
-      delete pair.first;
-      for (auto& prop : pair.second) {
-        delete prop;
-      }
-    }
-  }
-
  private:
-  std::vector<std::pair<PropertySet*, std::vector<PropertySet*>>> output_input_properties_;
+  std::vector<std::pair<std::shared_ptr<PropertySet>, std::vector<std::shared_ptr<PropertySet>>>>
+      output_input_properties_;
 
   GroupExpression* group_expr_;
 

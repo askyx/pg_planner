@@ -62,7 +62,7 @@ static OperatorNode *PexprRecursiveNormalize(OperatorNode *pexpr) {
 static void SplitConjunct(OperatorNode *pexpr, const ItemExprPtr &pexpr_conj, ExprArray &ppdrgpexpr_pushable,
                           ExprArray &ppdrgpexpr_unpushable) {
   // collect pushable predicates from given conjunct
-  auto pdrgpexpr_conjuncts = CUtils::PdrgpexprConjuncts(pexpr_conj);
+  auto pdrgpexpr_conjuncts = OperatorUtils::PdrgpexprConjuncts(pexpr_conj);
   for (const auto &pexpr_scalar : pdrgpexpr_conjuncts) {
     if (FPushable(pexpr, pexpr_scalar)) {
       ppdrgpexpr_pushable.emplace_back(pexpr_scalar);
@@ -76,42 +76,42 @@ OperatorNode *PexprSelect(OperatorNode *pexpr, const ExprArray &pdrgpexpr) {
   if (pdrgpexpr.empty())
     return pexpr;
 
-  auto pexpr_conjunction = CUtils::PexprConjunction(pdrgpexpr);
-  return CUtils::PexprSafeSelect(pexpr, pexpr_conjunction);
+  auto pexpr_conjunction = OperatorUtils::PexprConjunction(pdrgpexpr);
+  return OperatorUtils::PexprSafeSelect(pexpr, pexpr_conjunction);
 }
 
 OperatorNode *PushThrux(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_conj) {
   switch (pexpr_logical->content->kind) {
     case OperatorType::LogicalGet: {
       auto &get = pexpr_logical->Cast<LogicalGet>();
-      auto filter = CUtils::PexprConjunction(get.filter, pexpr_conj);
-      if (!CUtils::FScalarConstTrue(filter))
+      auto filter = OperatorUtils::PexprConjunction(get.filter, pexpr_conj);
+      if (!OperatorUtils::FScalarConstTrue(filter))
         get.filter = filter;
       return pexpr_logical;
     }
     case OperatorType::LogicalSelect: {
       auto &select = pexpr_logical->Cast<LogicalFilter>();
       OperatorNode *child_node = pexpr_logical->GetChild(0);
-      auto pexpr_pred = CUtils::PexprConjunction(select.filter, pexpr_conj);
+      auto pexpr_pred = OperatorUtils::PexprConjunction(select.filter, pexpr_conj);
 
-      auto pdrgpexpr_conjuncts = CUtils::PdrgpexprConjuncts(pexpr_pred);
+      auto pdrgpexpr_conjuncts = OperatorUtils::PdrgpexprConjuncts(pexpr_pred);
       ExprArray pdrgpexpr_remaining;
       OperatorNode *pexpr = PushThru(child_node, pdrgpexpr_conjuncts, pdrgpexpr_remaining);
       if (pdrgpexpr_remaining.empty())
         return pexpr;
 
-      auto pexpr_conjunction = CUtils::PexprConjunction(pdrgpexpr_remaining);
+      auto pexpr_conjunction = OperatorUtils::PexprConjunction(pdrgpexpr_remaining);
       if (pexpr->content->kind == OperatorType::LogicalGet) {
         ColRefSet pcrs_used = pexpr_conjunction->DeriveUsedColumns();
         ColRefSet pcrs_output = pexpr->DeriveOutputColumns();
         if (ColRefSetIntersects(pcrs_used, pcrs_output)) {
           auto &get = pexpr->Cast<LogicalGet>();
-          auto filter = CUtils::PexprConjunction(get.filter, pexpr_conjunction);
+          auto filter = OperatorUtils::PexprConjunction(get.filter, pexpr_conjunction);
           get.filter = filter;
           return pexpr;
         }
       }
-      return CUtils::PexprSafeSelect(pexpr, pexpr_conjunction);
+      return OperatorUtils::PexprSafeSelect(pexpr, pexpr_conjunction);
     } break;
 
     case OperatorType::LogicalJoin:
@@ -125,8 +125,8 @@ OperatorNode *PushThrux(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_co
         pexpr_scalar = pexpr_logical->Cast<LogicalApply>().filter;
       }
 
-      auto pexpr_pred = CUtils::PexprConjunction(pexpr_scalar, pexpr_conj);
-      auto pdrgpexpr_conjuncts = CUtils::PdrgpexprConjuncts(pexpr_pred);
+      auto pexpr_pred = OperatorUtils::PexprConjunction(pexpr_scalar, pexpr_conj);
+      auto pdrgpexpr_conjuncts = OperatorUtils::PdrgpexprConjuncts(pexpr_pred);
       OperatorNodeArray pdrgpexpr_children;
 
       for (uint32_t ul = 0; ul < pexpr_logical->ChildrenSize(); ul++) {
@@ -146,7 +146,7 @@ OperatorNode *PushThrux(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_co
       }
 
       // remaining conjuncts become the new join predicate
-      auto pexpr_new_scalar = CUtils::PexprConjunction(pdrgpexpr_conjuncts);
+      auto pexpr_new_scalar = OperatorUtils::PexprConjunction(pdrgpexpr_conjuncts);
 
       if (pexpr_logical->content->kind == OperatorType::LogicalJoin) {
         auto &join = pexpr_logical->Cast<LogicalJoin>();
@@ -161,7 +161,7 @@ OperatorNode *PushThrux(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_co
 
     default: {
       OperatorNode *pexpr_normalized = PexprRecursiveNormalize(pexpr_logical);
-      return CUtils::PexprSafeSelect(pexpr_normalized, pexpr_conj);
+      return OperatorUtils::PexprSafeSelect(pexpr_normalized, pexpr_conj);
     }
   }
   return nullptr;
@@ -183,7 +183,7 @@ OperatorNode *PushThru(OperatorNode *pexpr_logical, const ExprArray &pdrgpexpr_c
   ppdrgpexpr_remaining = pdrgpexpr_unpushable;
 
   // push through a conjunction of all pushable predicates
-  auto pexpr_pred = CUtils::PexprConjunction(pdrgpexpr_pushable);
+  auto pexpr_pred = OperatorUtils::PexprConjunction(pdrgpexpr_pushable);
   if (FPushThruOuterChild(pexpr_logical)) {
     if (pexpr_logical->children.empty())
       return pexpr_logical;
@@ -198,7 +198,7 @@ OperatorNode *PushThru(OperatorNode *pexpr_logical, const ExprArray &pdrgpexpr_c
     auto *ppexpr_result = pexpr_logical;
 
     if (!pdrgpexpr_pushable.empty()) {
-      auto pexpr_new_conj = CUtils::PexprConjunction(pdrgpexpr_pushable);
+      auto pexpr_new_conj = OperatorUtils::PexprConjunction(pdrgpexpr_pushable);
 
       auto *pexpr_new_select = new OperatorNode(std::make_shared<LogicalFilter>(pexpr_new_conj), {pexpr_outer});
 
@@ -206,7 +206,7 @@ OperatorNode *PushThru(OperatorNode *pexpr_logical, const ExprArray &pdrgpexpr_c
 
       auto *pexpr_new = new OperatorNode(pexpr_logical->content, {pexpr_new_outer, pexpr_inner});
 
-      ppexpr_result = PushThrux(pexpr_new, CUtils::PexprScalarConstBool(true));
+      ppexpr_result = PushThrux(pexpr_new, OperatorUtils::PexprScalarConstBool(true));
     }
 
     if (!pdrgpexpr_unpushable.empty()) {
@@ -216,7 +216,7 @@ OperatorNode *PushThru(OperatorNode *pexpr_logical, const ExprArray &pdrgpexpr_c
         pexpr_outer_join = ppexpr_result;
       }
 
-      auto *pexpr_new = PushThrux(pexpr_outer_join, CUtils::PexprScalarConstBool(true));
+      auto *pexpr_new = PushThrux(pexpr_outer_join, OperatorUtils::PexprScalarConstBool(true));
 
       return PexprSelect(pexpr_new, pdrgpexpr_unpushable);
     }
@@ -233,7 +233,7 @@ OperatorNode *FilterPushDown::Process(OperatorNode *pexpr) {
       opid == OperatorType::LogicalJoin || opid == OperatorType::LogicalApply || opid == OperatorType::LogicalSelect) {
     ItemExprPtr filter;
     if (FPushThruOuterChild(pexpr))
-      filter = CUtils::PexprScalarConstBool(true);
+      filter = OperatorUtils::PexprScalarConstBool(true);
     else {
       if (opid == OperatorType::LogicalSelect) {
         filter = pexpr->Cast<LogicalFilter>().filter;

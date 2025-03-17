@@ -1,7 +1,6 @@
 #include "pg_optimizer/optimizer_task.h"
 
 #include <cstdint>
-#include <iostream>
 #include <vector>
 
 #include "pg_optimizer/binding.h"
@@ -226,7 +225,7 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
 
     auto child_size = group_expr_->GetChildGroup().size();
     for (; cur_child_idx_ < static_cast<int>(child_size); cur_child_idx_++) {
-      auto *i_prop = input_props[cur_child_idx_];
+      const auto &i_prop = input_props[cur_child_idx_];
       auto *child_group = group_expr_->GetChildGroup()[cur_child_idx_];
       // Check whether the child group is already optimized for the prop
       auto *child_best_expr = child_group->GetBestExpression(i_prop);
@@ -256,9 +255,9 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
       // best expr from the child group
 
       // Add this group expression to group expression hash table
-      std::vector<PropertySet *> input_props_copy;
+      std::vector<std::shared_ptr<PropertySet>> input_props_copy;
       input_props_copy.reserve(input_props.size());
-      for (auto *i_prop : input_props) {
+      for (const auto &i_prop : input_props) {
         input_props_copy.push_back(i_prop->Copy());
       }
 
@@ -288,10 +287,10 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
           GetMemo().InsertExpression(nullptr, enforced_expr, group_expr_->GetGroup(), true);
 
           // Extend the output properties after enforcement
-          auto *pre_output_prop_set = output_prop->Copy();
+          auto pre_output_prop_set = output_prop->Copy();
 
           // Cost the enforced expression
-          auto *extended_prop_set = output_prop->Copy();
+          auto extended_prop_set = output_prop->Copy();
           extended_prop_set->AddProperty(prop->Copy());
 
           CostCalculator cost_calculator;

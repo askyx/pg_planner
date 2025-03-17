@@ -1,13 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <tuple>
 #include <unordered_map>
 
-#include "pg_operator/operator_node.h"
 #include "pg_optimizer/property.h"
-
-#define GPOPT_INVALID_GROUP_ID UINT32_MAX
 
 namespace pgp {
 
@@ -29,7 +27,8 @@ class Group {
   std::vector<GroupExpression *> physical_expressions_;
   std::vector<GroupExpression *> enforced_expressions_;
 
-  std::unordered_map<PropertySet *, std::tuple<double, GroupExpression *>, PropertySetHasher, PropertySetEqer>
+  std::unordered_map<std::shared_ptr<PropertySet>, std::tuple<double, GroupExpression *>, PropertySetHasher,
+                     PropertySetEqer>
       lowest_cost_expressions_;
 
  public:
@@ -37,13 +36,13 @@ class Group {
 
   ~Group();
 
-  bool SetExpressionCost(GroupExpression *expr, double cost, PropertySet *properties);
+  bool SetExpressionCost(GroupExpression *expr, double cost, const std::shared_ptr<PropertySet> &properties);
 
   void SetExplorationFlag() { has_explored_ = true; }
 
   bool HasExplored() const { return has_explored_; }
 
-  bool HasExpressions(PropertySet *properties) const {
+  bool HasExpressions(const std::shared_ptr<PropertySet> &properties) const {
     const auto &it = lowest_cost_expressions_.find(properties);
     return (it != lowest_cost_expressions_.end());
   }
@@ -61,7 +60,7 @@ class Group {
   OperatorProperties *GroupProperties() const { return group_properties_; }
 
   // lookup best expression under given optimization context
-  GroupExpression *GetBestExpression(PropertySet *properties);
+  GroupExpression *GetBestExpression(const std::shared_ptr<PropertySet> &properties);
 
   bool operator==(const Group &other) const { return group_id_ == other.group_id_; }
 };

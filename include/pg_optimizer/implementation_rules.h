@@ -4,37 +4,37 @@
 
 namespace pgp {
 
-class CXformGet2TableScan : public Rule {
+class Get2TableScan : public Rule {
  public:
-  CXformGet2TableScan();
+  Get2TableScan();
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformImplementLimit : public Rule {
+class ImplementLimit : public Rule {
  public:
-  CXformImplementLimit();
+  ImplementLimit();
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformSelect2Filter : public Rule {
+class Select2Filter : public Rule {
  public:
-  CXformSelect2Filter();
+  Select2Filter();
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformProject2ComputeScalar : public Rule {
+class Project2ComputeScalarRule : public Rule {
  public:
-  CXformProject2ComputeScalar();
+  Project2ComputeScalarRule();
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformImplementInnerJoin : public Rule {
+class ImplementInnerJoin : public Rule {
  public:
-  CXformImplementInnerJoin();
+  ImplementInnerJoin();
 
   bool Check(GroupExpression *gexpr) const override;
 
@@ -42,9 +42,9 @@ class CXformImplementInnerJoin : public Rule {
 };
 
 // HashAggregate
-class CXformGbAgg2HashAgg : public Rule {
+class GbAgg2HashAgg : public Rule {
  public:
-  CXformGbAgg2HashAgg();
+  GbAgg2HashAgg();
 
   bool Check(GroupExpression *gexpr) const override;
 
@@ -52,9 +52,9 @@ class CXformGbAgg2HashAgg : public Rule {
 };
 
 // Plain Aggregate
-class CXformGbAgg2ScalarAgg : public Rule {
+class GbAgg2ScalarAgg : public Rule {
  public:
-  CXformGbAgg2ScalarAgg();
+  GbAgg2ScalarAgg();
 
   bool Check(GroupExpression *gexpr) const override;
 
@@ -62,34 +62,34 @@ class CXformGbAgg2ScalarAgg : public Rule {
 };
 
 // Sorted Aggregate
-class CXformGbAgg2StreamAgg : public Rule {
+class GbAgg2StreamAgg : public Rule {
  public:
-  CXformGbAgg2StreamAgg();
+  GbAgg2StreamAgg();
 
   bool Check(GroupExpression *gexpr) const override;
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformImplementApply : public Rule {
+class ImplementApply : public Rule {
  public:
-  CXformImplementApply();
+  ImplementApply();
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformJoin2NLJoin : public Rule {
+class Join2NestedLoopJoin : public Rule {
  public:
-  CXformJoin2NLJoin();
+  Join2NestedLoopJoin();
 
   bool Check(GroupExpression *gexpr) const override;
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };
 
-class CXformJoin2HashJoin : public Rule {
+class Join2HashJoin : public Rule {
  public:
-  CXformJoin2HashJoin();
+  Join2HashJoin();
 
   void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
 };

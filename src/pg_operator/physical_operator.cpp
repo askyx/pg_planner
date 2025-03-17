@@ -217,7 +217,7 @@ bool PhysicalJoin::FHashJoinCompatible(const ItemExprPtr &pexpr_pred, OperatorNo
                                        OperatorNode *pexpr_inner) {
   ItemExprPtr pexpr_pred_outer = nullptr;
   ItemExprPtr pexpr_pred_inner = nullptr;
-  if (CUtils::FINDF(pexpr_pred)) {
+  if (OperatorUtils::FINDF(pexpr_pred)) {
     auto pexpr = pexpr_pred->GetChild(0);
     pexpr_pred_outer = pexpr->GetChild(0);
     pexpr_pred_inner = pexpr->GetChild(1);
@@ -238,7 +238,7 @@ void PhysicalJoin::AlignJoinKeyOuterInner(const ItemExprPtr &pexpr_pred, Operato
   ItemExprPtr pexpr_pred_inner = nullptr;
 
   // extract left & right children from pexpr_pred for all supported ops
-  if (CUtils::FINDF(pexpr_pred)) {
+  if (OperatorUtils::FINDF(pexpr_pred)) {
     auto pexpr = pexpr_pred->GetChild(0);
     pexpr_pred_outer = pexpr->GetChild(0);
     pexpr_pred_inner = pexpr->GetChild(1);

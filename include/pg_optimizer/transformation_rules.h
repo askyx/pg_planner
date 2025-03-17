@@ -5,9 +5,9 @@
 
 namespace pgp {
 
-class CXformInnerJoinCommutativity : public Rule {
+class InnerJoinCommutativityRule : public Rule {
  public:
-  CXformInnerJoinCommutativity();
+  InnerJoinCommutativityRule();
 
   bool Check(GroupExpression *gexpr) const override;
 

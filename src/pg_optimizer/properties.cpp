@@ -1,14 +1,15 @@
 #include "pg_optimizer/properties.h"
 
 #include <cstdint>
+#include <memory>
 
 #include "common/hash_util.h"
 #include "pg_optimizer/order_spec.h"
 
 namespace pgp {
 
-PropertySort *PropertySort::Copy() {
-  return new PropertySort(order_spec_->Copy());
+std::shared_ptr<Property> PropertySort::Copy() {
+  return std::make_shared<PropertySort>(order_spec_->Copy());
 }
 
 hash_t PropertySort::Hash() const {
