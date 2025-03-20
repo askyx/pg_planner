@@ -1,5 +1,6 @@
 #include "pg_operator/physical_operator.h"
 
+#include <memory>
 #include <utility>
 
 #include "common/hash_util.h"
@@ -135,7 +136,7 @@ bool PhysicalAgg::operator==(const Operator &other) const {
 
 PhysicalStreamAgg::PhysicalStreamAgg(ColRefArray colref_array, ExprArray project_exprs)
     : PhysicalAgg(OperatorType::PhysicalStreamAgg, std::move(colref_array), std::move(project_exprs)) {
-  order_spec = new OrderSpec();
+  order_spec = std::make_shared<OrderSpec>();
   for (auto *colref : group_columns) {
     auto *type_entry = lookup_type_cache(colref->RetrieveType(), TYPECACHE_LT_OPR);
 
@@ -143,7 +144,8 @@ PhysicalStreamAgg::PhysicalStreamAgg(ColRefArray colref_array, ExprArray project
   }
 }
 
-OrderSpec *PhysicalStreamAgg::PosCovering(OrderSpec *pos_required, const ColRefArray &pdrgpcr_grp) {
+std::shared_ptr<OrderSpec> PhysicalStreamAgg::PosCovering(const std::shared_ptr<OrderSpec> &pos_required,
+                                                          const ColRefArray &pdrgpcr_grp) {
   if (0 == pos_required->SortSize()) {
     // required order must be non-empty
     return nullptr;
@@ -152,7 +154,7 @@ OrderSpec *PhysicalStreamAgg::PosCovering(OrderSpec *pos_required, const ColRefA
   // create a set of required sort columns
   auto pcrs_reqd = pos_required->GetUsedColumns();
 
-  OrderSpec *pos = nullptr;
+  std::shared_ptr<OrderSpec> pos = nullptr;
 
   ColRefSet pcrs_grp_cols;
   AddColRef(pcrs_grp_cols, pdrgpcr_grp);

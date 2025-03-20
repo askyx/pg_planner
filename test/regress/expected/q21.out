@@ -43,23 +43,23 @@ select query from tpch_queries(21); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(21);
-                 transform_query                  
---------------------------------------------------
- LogicalLimit: limit: (481 Constant) offset: NULL+
- └── LogicalGbAgg                                +
-     └── LogicalApply: EXISTS_SUBLINK            +
-         ├── LogicalApply: EXISTS_SUBLINK        +
-         │   ├── LogicalJoin: INNER              +
-         │   │   ├── LogicalJoin: INNER          +
-         │   │   │   ├── LogicalJoin: INNER      +
-         │   │   │   │   ├── LogicalGet          +
-         │   │   │   │   └── LogicalGet          +
-         │   │   │   └── LogicalGet              +
-         │   │   └── LogicalGet                  +
-         │   └── LogicalSelect                   +
-         │       └── LogicalGet                  +
-         └── LogicalSelect                       +
-             └── LogicalGet                      +
+                                                      transform_query                                                      
+---------------------------------------------------------------------------------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL                                                                         +
+ └── LogicalGbAgg: group: s_name#1, agg: Pj(numwait count())                                                              +
+     └── LogicalApply: EXISTS_SUBLINK                                                                                     +
+         ├── LogicalApply: EXISTS_SUBLINK                                                                                 +
+         │   ├── LogicalJoin: INNER                                                                                       +
+         │   │   ├── LogicalJoin: INNER                                                                                   +
+         │   │   │   ├── LogicalJoin: INNER                                                                               +
+         │   │   │   │   ├── LogicalGet: supplier                                                                         +
+         │   │   │   │   └── LogicalGet: l1                                                                               +
+         │   │   │   └── LogicalGet: orders                                                                               +
+         │   │   └── LogicalGet: nation                                                                                   +
+         │   └── LogicalFilter: (AND ((96 l_orderkey l_orderkey),(518 l_suppkey l_suppkey)))                              +
+         │       └── LogicalGet: l2                                                                                       +
+         └── LogicalFilter: (AND ((96 l_orderkey l_orderkey),(518 l_suppkey l_suppkey),(1097 l_receiptdate l_commitdate)))+
+             └── LogicalGet: l3                                                                                           +
  
 (1 row)
 

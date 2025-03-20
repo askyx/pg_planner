@@ -26,11 +26,11 @@ select query from tpch_queries(1); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(1);
-  transform_query   
---------------------
- LogicalGbAgg      +
- └── LogicalSelect +
-     └── LogicalGet+
+                                                                                                                                                                                                                      transform_query                                                                                                                                                                                                                       
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: l_returnflag#8, l_linestatus#9, agg: Pj(sum_qty sum(l_quantity)), Pj(sum_base_price sum(l_extendedprice)), Pj(sum_disc_price sum((1760 l_extendedprice (1759 (1740 Constant) l_discount)))), Pj(sum_charge sum((1760 (1760 l_extendedprice (1759 (1740 Constant) l_discount)) (1758 (1740 Constant) l_tax)))), Pj(avg_qty avg(l_quantity)), Pj(avg_price avg(l_extendedprice)), Pj(avg_disc avg(l_discount)), Pj(count_order count())+
+ └── LogicalFilter: (1096 l_shipdate Constant)                                                                                                                                                                                                                                                                                                                                                                                                             +
+     └── LogicalGet: lineitem                                                                                                                                                                                                                                                                                                                                                                                                                              +
  
 (1 row)
 

@@ -64,7 +64,7 @@ PlanMeta &PlanMeta::SetAggGroupInfo(const PhysicalAgg &agg_node) {
 PlanMeta &PlanMeta::SetSortInfo(const PhysicalSort &sort_node) {
   Sort *sort = (Sort *)plan;
 
-  auto *sortspec = sort_node.order_spec;
+  auto sortspec = sort_node.order_spec;
 
   sort->numCols = (int)sortspec->SortSize();
   sort->sortColIdx = (AttrNumber *)palloc(sort->numCols * sizeof(AttrNumber));
@@ -273,7 +273,7 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
     return nullptr;
 
   switch (op_node->kind) {
-    case pgp::ExpressionKind::EopScalarIdent: {
+    case pgp::ExpressionKind::Ident: {
       auto *colref = op_node->Cast<ItemIdent>().colref;
       if (generator.colid_subplan_map.contains(colref->Id()))
         return generator.colid_subplan_map.at(colref->Id());
@@ -281,18 +281,7 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return GenerateVarExpr(colref);
     }
 
-    case pgp::ExpressionKind::EopScalarCmp: {
-      const auto &pop_sc_cmp = op_node->Cast<ItemCmpExpr>();
-
-      auto *op_expr = pop_sc_cmp.ToOpExpr();
-
-      for (const auto &arg : op_node->children)
-        op_expr->args = lappend(op_expr->args, GenerateExpr(arg));
-
-      return (Expr *)op_expr;
-    }
-
-    case pgp::ExpressionKind::EopScalarCast: {
+    case pgp::ExpressionKind::RelabelType: {
       const auto &pop_sc_cast = op_node->Cast<ItemCastExpr>();
 
       auto *expr = pop_sc_cast.ToExpr();
@@ -310,13 +299,13 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return expr;
     }
 
-    case pgp::ExpressionKind::EopScalarConst: {
+    case pgp::ExpressionKind::Const: {
       auto *pop_sc_const = op_node->Cast<ItemConst>().value;
 
       return (Expr *)copyObject(pop_sc_const);
     }
 
-    case pgp::ExpressionKind::EopScalarFunc: {
+    case pgp::ExpressionKind::FuncExpr: {
       const auto &pop_sc_func = op_node->Cast<ItemFuncExpr>();
 
       auto *func_expr = pop_sc_func.ToFuncExpr();
@@ -329,7 +318,7 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return (Expr *)func_expr;
     }
 
-    case pgp::ExpressionKind::EopScalarOp: {
+    case pgp::ExpressionKind::OpExpr: {
       const auto &pscop = op_node->Cast<ItemOpExpr>();
 
       auto *op_expr = pscop.ToOpExpr();
@@ -342,7 +331,7 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return (Expr *)op_expr;
     }
 
-    case pgp::ExpressionKind::EopScalarBoolOp: {
+    case pgp::ExpressionKind::BoolExpr: {
       const auto &pop_sc_bool_op = op_node->Cast<ItemBoolExpr>();
 
       BoolExpr *scalar_bool_expr = pop_sc_bool_op.ToBoolExpr();
@@ -353,8 +342,8 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return (Expr *)scalar_bool_expr;
     }
 
-    case pgp::ExpressionKind::EopScalarArrayCmp: {
-      const auto &pop = op_node->Cast<ItemArrayCmp>();
+    case pgp::ExpressionKind::ScalarArrayOpExpr: {
+      const auto &pop = op_node->Cast<ItemArrayOpExpr>();
 
       ScalarArrayOpExpr *array_op_expr = pop.ToScalarArrayOpExpr();
 
@@ -367,7 +356,7 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return (Expr *)array_op_expr;
     }
 
-    case pgp::ExpressionKind::EopScalarArray: {
+    case pgp::ExpressionKind::ArrayExpr: {
       const auto &pop = op_node->Cast<ItemArrayExpr>();
 
       auto *expr = pop.ToArrayExpr();
@@ -403,13 +392,13 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
       return (Expr *)case_expr;
     }
 
-    case pgp::ExpressionKind::EopScalarSortGroupClause: {
+    case pgp::ExpressionKind::SortGroupClause: {
       auto *expr = op_node->Cast<ItemSortGroupClause>().expr;
 
       return (Expr *)expr;
     }
 
-    case pgp::ExpressionKind::EopScalarAggFunc: {
+    case pgp::ExpressionKind::Aggref: {
       const auto &pop_sc_agg_func = op_node->Cast<ItemAggref>();
 
       auto *aggref = pop_sc_agg_func.ToAggref();
@@ -658,7 +647,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
                              apply_node)
             .GenerateTargetList(req_cols);
         auto *plan = apply_meta.plan;
-        const auto &pop_sc_cmp = apply_node.filter->Cast<ItemCmpExpr>();
+        const auto &pop_sc_cmp = apply_node.filter->Cast<ItemOpExpr>();
 
         auto *paramref = (pop_sc_cmp.GetChild(1))->Cast<ItemIdent>().colref;
 

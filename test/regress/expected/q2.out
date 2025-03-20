@@ -48,27 +48,27 @@ select query from tpch_queries(2); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(2);
-                 transform_query                  
---------------------------------------------------
- LogicalLimit: limit: (481 Constant) offset: NULL+
- └── LogicalApply: EXPR_SUBLINK                  +
-     ├── LogicalJoin: INNER                      +
-     │   ├── LogicalJoin: INNER                  +
-     │   │   ├── LogicalJoin: INNER              +
-     │   │   │   ├── LogicalJoin: INNER          +
-     │   │   │   │   ├── LogicalGet              +
-     │   │   │   │   └── LogicalGet              +
-     │   │   │   └── LogicalGet                  +
-     │   │   └── LogicalGet                      +
-     │   └── LogicalGet                          +
-     └── LogicalGbAgg                            +
-         └── LogicalJoin: INNER                  +
-             ├── LogicalJoin: INNER              +
-             │   ├── LogicalJoin: INNER          +
-             │   │   ├── LogicalGet              +
-             │   │   └── LogicalGet              +
-             │   └── LogicalGet                  +
-             └── LogicalGet                      +
+                        transform_query                         
+----------------------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL              +
+ └── LogicalApply: EXPR_SUBLINK                                +
+     ├── LogicalJoin: INNER                                    +
+     │   ├── LogicalJoin: INNER                                +
+     │   │   ├── LogicalJoin: INNER                            +
+     │   │   │   ├── LogicalJoin: INNER                        +
+     │   │   │   │   ├── LogicalGet: part                      +
+     │   │   │   │   └── LogicalGet: supplier                  +
+     │   │   │   └── LogicalGet: partsupp                      +
+     │   │   └── LogicalGet: nation                            +
+     │   └── LogicalGet: region                                +
+     └── LogicalGbAgg: group: , agg: Pj(min min(ps_supplycost))+
+         └── LogicalJoin: INNER                                +
+             ├── LogicalJoin: INNER                            +
+             │   ├── LogicalJoin: INNER                        +
+             │   │   ├── LogicalGet: partsupp                  +
+             │   │   └── LogicalGet: supplier                  +
+             │   └── LogicalGet: nation                        +
+             └── LogicalGet: region                            +
  
 (1 row)
 

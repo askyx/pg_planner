@@ -38,7 +38,7 @@ class OperatorProperties {
 
   KeyCollection key_collection_;
 
-  CFunctionalDependencyArray functional_dependencies_;
+  FunctionalDependencyArray functional_dependencies_;
 
   ColRefSet defined_columns_;
 
@@ -54,7 +54,7 @@ class OperatorProperties {
 
   KeyCollection DeriveKeyCollection(OperatorNode *expr);
 
-  CFunctionalDependencyArray DeriveFunctionalDependencies(OperatorNode *expr);
+  FunctionalDependencyArray DeriveFunctionalDependencies(OperatorNode *expr);
 
   Cardinality DeriveMaxCard(OperatorNode *expr);
 
@@ -79,7 +79,7 @@ class OperatorProperties {
 
   KeyCollection GetKeyCollection() const;
 
-  CFunctionalDependencyArray GetFunctionalDependencies() const;
+  FunctionalDependencyArray GetFunctionalDependencies() const;
 
   Cardinality GetMaxCard() const;
 

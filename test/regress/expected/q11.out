@@ -32,14 +32,14 @@ select query from tpch_queries(11); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(11);
-      transform_query       
-----------------------------
- LogicalGbAgg              +
- └── LogicalJoin: INNER    +
-     ├── LogicalJoin: INNER+
-     │   ├── LogicalGet    +
-     │   └── LogicalGet    +
-     └── LogicalGet        +
+                                        transform_query                                         
+------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: ps_partkey#0, agg: Pj(value sum((1760 ps_supplycost (1740 ps_availqty))))+
+ └── LogicalJoin: INNER                                                                        +
+     ├── LogicalJoin: INNER                                                                    +
+     │   ├── LogicalGet: partsupp                                                              +
+     │   └── LogicalGet: supplier                                                              +
+     └── LogicalGet: nation                                                                    +
  
 (1 row)
 

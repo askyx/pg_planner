@@ -27,7 +27,7 @@ enum class OperatorType {
   LEAF,
 
   LogicalGet,
-  LogicalSelect,
+  LogicalFilter,
   LogicalGbAgg,
   LogicalLimit,
   LogicalProject,
@@ -58,9 +58,7 @@ class Operator {
 
   virtual ~Operator() = default;
 
-  std::string EopIdToString(OperatorType eopid) const;
-
-  virtual std::string ToString() const { return EopIdToString(kind); }
+  std::string ToString() const;
 
   virtual bool Logical() const { return false; }
 

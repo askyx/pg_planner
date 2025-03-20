@@ -8,15 +8,44 @@
 
 namespace pgp {
 
-std::string Operator::EopIdToString(OperatorType eopid) const {
-  switch (eopid) {
-    case OperatorType::LogicalGet:
-      return "LogicalGet";
-    case OperatorType::LogicalSelect:
-      return "LogicalSelect";
+std::string Operator::ToString() const {
+  switch (kind) {
+    case OperatorType::LogicalGet: {
+      const auto &get = Cast<LogicalGet>();
+      if (get.table_desc->alias != nullptr)
+        return std::format("LogicalGet: {}", get.table_desc->alias->aliasname);
 
-    case OperatorType::LogicalGbAgg:
-      return "LogicalGbAgg";
+      return std::format("LogicalGet: {}", get.table_desc->eref->aliasname);
+    }
+
+    case OperatorType::LogicalFilter: {
+      const auto &select = Cast<LogicalFilter>();
+      return std::format("LogicalFilter: {}", select.filter->ToString());
+    }
+
+    case OperatorType::LogicalGbAgg: {
+      const auto &gb_agg = Cast<LogicalGbAgg>();
+
+      std::string group_cols_str;
+      for (const auto &col : gb_agg.group_columns) {
+        group_cols_str += col->ToString() + ", ";
+      }
+      if (!group_cols_str.empty()) {
+        group_cols_str.pop_back();
+        group_cols_str.pop_back();
+      }
+
+      std::string agg_cols_str;
+      for (const auto &col : gb_agg.project_exprs) {
+        agg_cols_str += col->ToString() + ", ";
+      }
+      if (!agg_cols_str.empty()) {
+        agg_cols_str.pop_back();
+        agg_cols_str.pop_back();
+      }
+
+      return std::format("LogicalGbAgg: group: {}, agg: {}", group_cols_str, agg_cols_str);
+    }
     case OperatorType::LogicalLimit: {
       const auto &limit = Cast<LogicalLimit>();
       std::string limit_str;
@@ -31,8 +60,18 @@ std::string Operator::EopIdToString(OperatorType eopid) const {
         offset_str = "NULL";
       return std::format("LogicalLimit: limit: {} offset: {}", limit_str, offset_str);
     }
-    case OperatorType::LogicalProject:
-      return "LogicalProject";
+    case OperatorType::LogicalProject: {
+      const auto &project = Cast<LogicalProject>();
+      std::string project_cols_str;
+      for (const auto &col : project.project_exprs) {
+        project_cols_str += col->ToString() + ", ";
+      }
+      if (!project_cols_str.empty()) {
+        project_cols_str.pop_back();
+        project_cols_str.pop_back();
+      }
+      return std::format("LogicalProject: {}", project_cols_str);
+    }
     case OperatorType::LogicalApply: {
       const auto &id = Cast<LogicalApply>();
       switch (id.subquery_type) {
@@ -73,8 +112,6 @@ std::string Operator::EopIdToString(OperatorType eopid) const {
       }
     }
 
-    case OperatorType::PhysicalScan:
-      return "PhysicalScan";
     case OperatorType::PhysicalFilter:
       return "PhysicalFilter";
     case OperatorType::PhysicalNLJoin: {
@@ -100,6 +137,10 @@ std::string Operator::EopIdToString(OperatorType eopid) const {
           break;
       }
     }
+
+    case OperatorType::PhysicalScan:
+      return "PhysicalScan";
+
     case OperatorType::PhysicalFullMergeJoin:
       return "PhysicalFullMergeJoin";
 

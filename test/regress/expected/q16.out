@@ -34,15 +34,15 @@ select query from tpch_queries(16); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(16);
-        transform_query        
--------------------------------
- LogicalGbAgg                 +
- └── LogicalApply: ANY_SUBLINK+
-     ├── LogicalJoin: INNER   +
-     │   ├── LogicalGet       +
-     │   └── LogicalGet       +
-     └── LogicalSelect        +
-         └── LogicalGet       +
+                                       transform_query                                        
+----------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: p_brand#8, p_type#9, p_size#10, agg: Pj(supplier_cnt count(ps_suppkey))+
+ └── LogicalApply: ANY_SUBLINK                                                               +
+     ├── LogicalJoin: INNER                                                                  +
+     │   ├── LogicalGet: partsupp                                                            +
+     │   └── LogicalGet: part                                                                +
+     └── LogicalFilter: (1209 Cast Constant)                                                 +
+         └── LogicalGet: supplier                                                            +
  
 (1 row)
 

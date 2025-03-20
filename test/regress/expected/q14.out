@@ -19,12 +19,12 @@ select query from tpch_queries(14); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(14);
-    transform_query     
-------------------------
- LogicalGbAgg          +
- └── LogicalJoin: INNER+
-     ├── LogicalGet    +
-     └── LogicalGet    +
+                                                                transform_query                                                                 
+------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: , agg: Pj(promo_revenue (1761 (1760 Constant sum(Switch)) sum((1760 l_extendedprice (1759 (1740 Constant) l_discount)))))+
+ └── LogicalJoin: INNER                                                                                                                        +
+     ├── LogicalGet: lineitem                                                                                                                  +
+     └── LogicalGet: part                                                                                                                      +
  
 (1 row)
 

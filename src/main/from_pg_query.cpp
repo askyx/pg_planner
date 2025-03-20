@@ -101,10 +101,10 @@ OperatorNode *TranslatorQuery::TranslateSelect() {
   else if (!project_exprs.empty())
     root = new OperatorNode(std::make_shared<LogicalProject>(project_exprs), {root});
 
-  OrderSpec *pos = nullptr;
+  std::shared_ptr<OrderSpec> pos = nullptr;
 
   if (query_->sortClause != nullptr) {
-    pos = new OrderSpec();
+    pos = std::make_shared<OrderSpec>();
     foreach_node(SortGroupClause, sort_group_clause, query_->sortClause) {
       // get the colid of the sorting column
       auto *colref = sort_group_attno_to_colid_mapping[sort_group_clause->tleSortGroupRef];
@@ -309,12 +309,9 @@ ItemExprPtr TranslatorQuery::TranslateExprToProject(Expr *expr, OperatorNode **r
 
   ColRef *colref;
 
-  if (IsA(expr, Var)) {
-    // project elem is a reference to a column - use the colref id
+  if (IsA(expr, Var))
     colref = expr_node->Cast<ItemIdent>().colref;
-  } else {
-    // project elem is a defined column - get a new id
-
+  else {
     if (alias_name == nullptr)
       alias_name = "?column?";
 
@@ -348,39 +345,38 @@ ItemExprPtr TranslatorQuery::TranslateExpr(const Expr *expr, OperatorNode **root
 
       auto *colref = var_to_colid_map_.GetColRefByVar(query_level_, var);
 
+      if (colref == nullptr)
+        throw OptException("Unknown variable");
+
       return std::make_shared<ItemIdent>(colref);
     }
     case T_OpExpr: {
       auto *op_expr = castNode(OpExpr, expr);
 
-      ItemExprPtr op;
-
-      if (op_expr->opresulttype == BOOLOID && 2 == list_length(op_expr->args))
-        op = std::make_shared<ItemCmpExpr>(op_expr->opno);
-      else
-        op = std::make_shared<ItemOpExpr>(op_expr->opno, op_expr->opresulttype);
+      auto op = std::make_shared<ItemOpExpr>(op_expr->opno, op_expr->opresulttype);
 
       foreach_node(Expr, expr, op_expr->args) op->AddChild(TranslateExpr(expr, root));
 
       return op;
     }
-    case T_ScalarArrayOpExpr: {
-      auto *scalar_array_op_expr = castNode(ScalarArrayOpExpr, expr);
-
-      auto array_node = std::make_shared<ItemArrayCmp>(scalar_array_op_expr->opno, scalar_array_op_expr->opfuncid,
-                                                       scalar_array_op_expr->useOr);
-
-      foreach_node(Expr, expr, scalar_array_op_expr->args) array_node->AddChild(TranslateExpr(expr, root));
-
-      return array_node;
-    }
     case T_DistinctExpr: {
       auto *distinct_expr = castNode(DistinctExpr, expr);
 
       auto distinct_node = std::make_shared<ItemIsDistinctFrom>(distinct_expr->opno);
+
       foreach_node(Expr, expr, distinct_expr->args) distinct_node->AddChild(TranslateExpr(expr, root));
 
       return distinct_node;
+    }
+    case T_ScalarArrayOpExpr: {
+      auto *scalar_array_op_expr = castNode(ScalarArrayOpExpr, expr);
+
+      auto array_node = std::make_shared<ItemArrayOpExpr>(scalar_array_op_expr->opno, scalar_array_op_expr->opfuncid,
+                                                          scalar_array_op_expr->useOr);
+
+      foreach_node(Expr, expr, scalar_array_op_expr->args) array_node->AddChild(TranslateExpr(expr, root));
+
+      return array_node;
     }
     case T_Const: {
       return std::make_shared<ItemConst>((Const *)copyObject(expr));
@@ -531,11 +527,7 @@ ItemExprPtr TranslatorQuery::TranslateExpr(const Expr *expr, OperatorNode **root
 
       return cast;
     }
-    case T_SubLink: {
-      auto *sublink = castNode(SubLink, expr);
 
-      return TranslateNode(sublink, root, false);
-    }
     case T_ArrayExpr: {
       auto *parrayexpr = castNode(ArrayExpr, expr);
 
@@ -552,19 +544,24 @@ ItemExprPtr TranslatorQuery::TranslateExpr(const Expr *expr, OperatorNode **root
 
       return std::make_shared<ItemSortGroupClause>((SortGroupClause *)copyObject(sgc));
     }
+    case T_SubLink: {
+      auto *sublink = castNode(SubLink, expr);
+
+      return TranslateNode(sublink, root, false);
+    }
   }
 }
 
 ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root, bool under_not) {
+  TranslatorQuery query_translator{optimizer_context_, var_to_colid_map_, (Query *)sublink->subselect,
+                                   query_level_ + 1};
+
+  OperatorNode *subquery_node = query_translator.TranslateSelect();
+  auto output_array = query_translator.GetQueryOutputCols();
+
+  // TODO: more subquery types
   switch (sublink->subLinkType) {
     case EXPR_SUBLINK: {
-      TranslatorQuery query_translator{optimizer_context_, var_to_colid_map_, (Query *)sublink->subselect,
-                                       query_level_ + 1};
-
-      OperatorNode *subquery_node = query_translator.TranslateSelect();
-
-      auto output_array = query_translator.GetQueryOutputCols();
-
       auto *colref = output_array[0];
 
       auto apply = std::make_shared<LogicalApply>(output_array, SubQueryType::EXPR_SUBLINK,
@@ -576,17 +573,8 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
 
     case ALL_SUBLINK:
     case ANY_SUBLINK: {
-      TranslatorQuery query_translator{optimizer_context_, var_to_colid_map_, (Query *)sublink->subselect,
-                                       query_level_ + 1};
-
-      OperatorNode *subquery_node = query_translator.TranslateSelect();
-
-      auto output_array = query_translator.GetQueryOutputCols();
-
-      // TODO: array subquery support
-      if (1 != output_array.size()) {
+      if (1 != output_array.size())
         throw OptException("Non-Scalar Subquery");
-      }
 
       auto *op_expr = (OpExpr *)sublink->testexpr;
 
@@ -607,12 +595,7 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
     }
 
     case EXISTS_SUBLINK: {
-      TranslatorQuery query_translator{optimizer_context_, var_to_colid_map_, (Query *)sublink->subselect,
-                                       query_level_ + 1};
-
-      OperatorNode *subquery_node = query_translator.TranslateSelect();
-
-      ColRefArray colrefs = {query_translator.GetQueryOutputCols().front()};
+      ColRefArray colrefs = {output_array.front()};
       auto apply = std::make_shared<LogicalApply>(colrefs, SubQueryType::EXISTS_SUBLINK,
                                                   pgp::OperatorUtils::PexprScalarConstBool(true));
       apply->is_not_subquery = under_not;
@@ -622,7 +605,7 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
     }
 
     default: {
-      throw OptException("Non-Scalar Subquery, {}");
+      throw OptException("Non-Scalar Subquery");
     }
   }
 

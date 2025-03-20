@@ -37,7 +37,7 @@ OperatorNode *NormalizerNodeByRule(OperatorNode *expr, const T &rule) {
 
 struct RemoveEmptySelectRule {
   bool Match(OperatorNode *expr) const {
-    if (expr->content->kind == OperatorType::LogicalSelect) {
+    if (expr->content->kind == OperatorType::LogicalFilter) {
       const auto &select = expr->Cast<LogicalFilter>();
       return OperatorUtils::FScalarConstTrue(select.filter);
     }

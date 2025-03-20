@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 
@@ -34,15 +35,15 @@ class LogicalLimit : public LogicalOperator {
  public:
   constexpr static OperatorType TYPE = OperatorType::LogicalLimit;
 
-  OrderSpec *order_spec;
+  std::shared_ptr<OrderSpec> order_spec;
 
   ItemExprPtr limit;
 
   ItemExprPtr offset;
 
-  LogicalLimit(OrderSpec *order_spec, ItemExprPtr limit, ItemExprPtr offset)
+  LogicalLimit(std::shared_ptr<OrderSpec> order_spec, ItemExprPtr limit, ItemExprPtr offset)
       : LogicalOperator(OperatorType::LogicalLimit),
-        order_spec(order_spec),
+        order_spec(std::move(order_spec)),
         limit(std::move(limit)),
         offset(std::move(offset)) {}
 
@@ -133,12 +134,12 @@ class LogicalGbAgg : public LogicalOperator {
 
 class LogicalFilter : public LogicalOperator {
  public:
-  constexpr static OperatorType TYPE = OperatorType::LogicalSelect;
+  constexpr static OperatorType TYPE = OperatorType::LogicalFilter;
 
   ItemExprPtr filter;
 
   explicit LogicalFilter(ItemExprPtr filter)
-      : LogicalOperator(OperatorType::LogicalSelect), filter(std::move(filter)) {}
+      : LogicalOperator(OperatorType::LogicalFilter), filter(std::move(filter)) {}
 
   hash_t Hash() const override;
 

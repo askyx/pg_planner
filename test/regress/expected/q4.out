@@ -25,14 +25,14 @@ select query from tpch_queries(4); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(4);
-           transform_query            
---------------------------------------
- LogicalGbAgg                        +
- └── LogicalSelect                   +
-     └── LogicalApply: EXISTS_SUBLINK+
-         ├── LogicalGet              +
-         └── LogicalSelect           +
-             └── LogicalGet          +
+                                         transform_query                                         
+-------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: o_orderpriority#5, agg: Pj(order_count count())                           +
+ └── LogicalFilter: (AND ((1098 o_orderdate Constant),(1095 o_orderdate Constant),Constant))    +
+     └── LogicalApply: EXISTS_SUBLINK                                                           +
+         ├── LogicalGet: orders                                                                 +
+         └── LogicalFilter: (AND ((96 l_orderkey o_orderkey),(1095 l_commitdate l_receiptdate)))+
+             └── LogicalGet: lineitem                                                           +
  
 (1 row)
 

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "common/hash_util.h"
@@ -45,8 +46,8 @@ class OrderSpec {
 
   void AddSortElement(SortElement ele) { sort_array_.push_back(ele); }
 
-  OrderSpec *Copy() const {
-    auto *copy = new OrderSpec();
+  std::shared_ptr<OrderSpec> Copy() const {
+    auto copy = std::make_shared<OrderSpec>();
     copy->sort_array_ = sort_array_;
     return copy;
   }
@@ -55,7 +56,7 @@ class OrderSpec {
 
   bool operator==(const OrderSpec &other) const { return sort_array_ == other.sort_array_; }
 
-  bool Satisfies(const OrderSpec *pos) const;
+  bool Satisfies(const std::shared_ptr<OrderSpec> &pos) const;
 
   uint32_t Hash() const;
 };

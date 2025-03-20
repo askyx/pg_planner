@@ -35,12 +35,12 @@ select query from tpch_queries(12); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(12);
-    transform_query     
-------------------------
- LogicalGbAgg          +
- └── LogicalJoin: INNER+
-     ├── LogicalGet    +
-     └── LogicalGet    +
+                                             transform_query                                              
+----------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: l_shipmode#23, agg: Pj(high_line_count sum(Switch)), Pj(low_line_count sum(Switch))+
+ └── LogicalJoin: INNER                                                                                  +
+     ├── LogicalGet: orders                                                                              +
+     └── LogicalGet: lineitem                                                                            +
  
 (1 row)
 

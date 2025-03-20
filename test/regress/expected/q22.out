@@ -36,19 +36,19 @@ select query from tpch_queries(22); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(22);
-              transform_query               
---------------------------------------------
- LogicalGbAgg                              +
- └── LogicalProject                        +
-     └── LogicalSelect                     +
-         └── LogicalApply: EXISTS_SUBLINK  +
-             ├── LogicalApply: EXPR_SUBLINK+
-             │   ├── LogicalGet            +
-             │   └── LogicalGbAgg          +
-             │       └── LogicalSelect     +
-             │           └── LogicalGet    +
-             └── LogicalSelect             +
-                 └── LogicalGet            +
+                                                                                      transform_query                                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: cntrycode#26, agg: Pj(numcust count()), Pj(totacctbal sum(c_acctbal))                                                                                                +
+ └── LogicalProject: Pj(cntrycode (936 (401 c_phone) Constant Constant))                                                                                                                   +
+     └── LogicalFilter: (AND (((936 (401 c_phone) Constant Constant) ANY Array[Constant Constant Constant Constant Constant Constant Constant]),(1756 c_acctbal avg),Constant))            +
+         └── LogicalApply: EXISTS_SUBLINK                                                                                                                                                  +
+             ├── LogicalApply: EXPR_SUBLINK                                                                                                                                                +
+             │   ├── LogicalGet: customer                                                                                                                                                  +
+             │   └── LogicalGbAgg: group: , agg: Pj(avg avg(c_acctbal))                                                                                                                    +
+             │       └── LogicalFilter: (AND ((1756 c_acctbal Constant),((936 (401 c_phone) Constant Constant) ANY Array[Constant Constant Constant Constant Constant Constant Constant])))+
+             │           └── LogicalGet: customer                                                                                                                                          +
+             └── LogicalFilter: (96 o_custkey c_custkey)                                                                                                                                   +
+                 └── LogicalGet: orders                                                                                                                                                    +
  
 (1 row)
 

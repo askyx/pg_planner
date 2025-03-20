@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include "pg_optimizer/property.h"
 
@@ -10,7 +11,7 @@ class OrderSpec;
 
 class PropertySort : public Property {
  public:
-  explicit PropertySort(OrderSpec *order_spec) : order_spec_(order_spec) {}
+  explicit PropertySort(std::shared_ptr<OrderSpec> order_spec) : order_spec_(std::move(order_spec)) {}
 
   PropertyType Type() const override { return PropertyType::SORT; }
 
@@ -20,12 +21,12 @@ class PropertySort : public Property {
 
   bool operator>=(const Property &r) const override;
 
-  OrderSpec *GetSortSpec() const { return order_spec_; }
+  std::shared_ptr<OrderSpec> GetSortSpec() const { return order_spec_; }
 
   std::string ToString() const override;
 
  private:
-  OrderSpec *order_spec_;
+  std::shared_ptr<OrderSpec> order_spec_;
 };
 
 }  // namespace pgp

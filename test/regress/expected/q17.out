@@ -21,16 +21,16 @@ select query from tpch_queries(17); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(17);
-        transform_query         
---------------------------------
- LogicalGbAgg                  +
- └── LogicalApply: EXPR_SUBLINK+
-     ├── LogicalJoin: INNER    +
-     │   ├── LogicalGet        +
-     │   └── LogicalGet        +
-     └── LogicalGbAgg          +
-         └── LogicalSelect     +
-             └── LogicalGet    +
+                                 transform_query                                  
+----------------------------------------------------------------------------------
+ LogicalGbAgg: group: , agg: Pj(avg_yearly (1761 sum(l_extendedprice) Constant)) +
+ └── LogicalApply: EXPR_SUBLINK                                                  +
+     ├── LogicalJoin: INNER                                                      +
+     │   ├── LogicalGet: lineitem                                                +
+     │   └── LogicalGet: part                                                    +
+     └── LogicalGbAgg: group: , agg: Pj(?column? (1760 Constant avg(l_quantity)))+
+         └── LogicalFilter: (96 l_partkey p_partkey)                             +
+             └── LogicalGet: lineitem                                            +
  
 (1 row)
 

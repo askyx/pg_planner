@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -8,16 +9,16 @@
 
 namespace pgp {
 
-class CFunctionalDependency {
+class FunctionalDependency {
  private:
   ColRefSet determinants_;
 
   ColRefSet dependents_;
 
  public:
-  DISALLOW_COPY(CFunctionalDependency)
+  DISALLOW_COPY(FunctionalDependency)
 
-  CFunctionalDependency(ColRefSet determinants, ColRefSet dependents)
+  FunctionalDependency(ColRefSet determinants, ColRefSet dependents)
       : determinants_(std::move(determinants)), dependents_(std::move(dependents)) {}
 
   ColRefSet Determinants() const { return determinants_; }
@@ -29,6 +30,6 @@ class CFunctionalDependency {
   }
 };
 
-using CFunctionalDependencyArray = std::vector<CFunctionalDependency*>;
+using FunctionalDependencyArray = std::vector<std::shared_ptr<FunctionalDependency>>;
 
 }  // namespace pgp

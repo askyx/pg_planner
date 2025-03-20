@@ -2,6 +2,7 @@
 
 #include "pg_optimizer/operator_prop.h"
 
+#include <memory>
 #include <ranges>
 
 #include "nodes/bitmapset.h"
@@ -16,8 +17,6 @@ namespace pgp {
 
 OperatorProperties::~OperatorProperties() {
   bms_free(prop_derive_flag_);
-  for (auto *fd : functional_dependencies_)
-    delete fd;
 }
 
 void OperatorProperties::Derive(OperatorNode *expr) {
@@ -38,11 +37,11 @@ void OperatorProperties::Derive(OperatorNode *expr) {
   logical_derived_ = true;
 }
 
-CFunctionalDependencyArray DeriveChildFunctionalDependencies(uint32_t child_index, OperatorNode *expr) {
+FunctionalDependencyArray DeriveChildFunctionalDependencies(uint32_t child_index, OperatorNode *expr) {
   auto output_colums = expr->DeriveOutputColumns();
 
-  CFunctionalDependencyArray pdrgpfd;
-  for (auto *fd : expr->GetChild(child_index)->DeriveFunctionalDependencies()) {
+  FunctionalDependencyArray pdrgpfd;
+  for (const auto &fd : expr->GetChild(child_index)->DeriveFunctionalDependencies()) {
     if (ContainsAll(output_colums, fd->Determinants())) {
       // decompose FD's RHS to extract the applicable part
       ColRefSet pcrs_determined;
@@ -50,7 +49,7 @@ CFunctionalDependencyArray DeriveChildFunctionalDependencies(uint32_t child_inde
       ColRefSetIntersection(pcrs_determined, output_colums);
       if (0 < pcrs_determined.size()) {
         // create a new FD and add it to the output array
-        auto *pfd_new = new CFunctionalDependency(fd->Determinants(), pcrs_determined);
+        auto pfd_new = std::make_shared<FunctionalDependency>(fd->Determinants(), pcrs_determined);
         pdrgpfd.emplace_back(pfd_new);
       }
     }
@@ -59,8 +58,8 @@ CFunctionalDependencyArray DeriveChildFunctionalDependencies(uint32_t child_inde
   return pdrgpfd;
 }
 
-CFunctionalDependencyArray DeriveLocalFunctionalDependencies(OperatorNode *expr) {
-  CFunctionalDependencyArray pdrgpfd;
+FunctionalDependencyArray DeriveLocalFunctionalDependencies(OperatorNode *expr) {
+  FunctionalDependencyArray pdrgpfd;
 
   auto output_colums = expr->DeriveOutputColumns();
 
@@ -70,7 +69,7 @@ CFunctionalDependencyArray DeriveLocalFunctionalDependencies(OperatorNode *expr)
     ColRefSetDifference(dependents, key);
 
     if (0 < dependents.size()) {
-      auto *pfd_local = new CFunctionalDependency(key, dependents);
+      auto pfd_local = std::make_shared<FunctionalDependency>(key, dependents);
       pdrgpfd.emplace_back(pfd_local);
     }
   }
@@ -150,22 +149,22 @@ KeyCollection OperatorProperties::DeriveKeyCollection(OperatorNode *expr) {
   return key_collection_;
 }
 
-CFunctionalDependencyArray OperatorProperties::GetFunctionalDependencies() const {
+FunctionalDependencyArray OperatorProperties::GetFunctionalDependencies() const {
   PGP_ASSERT(IsComplete(), "property derivation is not complete");
   return functional_dependencies_;
 }
 
-CFunctionalDependencyArray OperatorProperties::DeriveFunctionalDependencies(OperatorNode *expr) {
+FunctionalDependencyArray OperatorProperties::DeriveFunctionalDependencies(OperatorNode *expr) {
   if (!bms_is_member(EdptPdrgpfd, prop_derive_flag_)) {
     prop_derive_flag_ = bms_add_member(prop_derive_flag_, EdptPdrgpfd);
 
     // collect applicable FD's from logical children
     for (auto [ul, child] : std::views::enumerate(expr->children)) {
-      for (auto *pfd : DeriveChildFunctionalDependencies(ul, expr))
+      for (const auto &pfd : DeriveChildFunctionalDependencies(ul, expr))
         functional_dependencies_.emplace_back(pfd);
     }
     // add local FD's
-    for (auto *pfd : DeriveLocalFunctionalDependencies(expr))
+    for (const auto &pfd : DeriveLocalFunctionalDependencies(expr))
       functional_dependencies_.emplace_back(pfd);
   }
 

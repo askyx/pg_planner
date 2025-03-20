@@ -34,14 +34,14 @@ ChildPropertyDeriver::GetProperties(Memo *memo, const std::shared_ptr<PropertySe
     case OperatorType::PhysicalLimit: {
       const auto &limit = op->Cast<PhysicalLimit>();
 
-      auto *property_set = new PropertySet();
+      auto property_set = std::make_shared<PropertySet>();
       property_set->AddProperty(std::make_shared<PropertySort>(limit.order_spec->Copy()));
       return {{requirements->Copy(), {property_set->Copy()}}};
     }
     // 属性下推到子节点
     case OperatorType::PhysicalComputeScalar: {
       if (const auto &sort = requirements->GetPropertyOfType(PropertyType::SORT); sort != nullptr) {
-        auto *sort_spec = sort->As<PropertySort>()->GetSortSpec();
+        auto sort_spec = sort->As<PropertySort>()->GetSortSpec();
         auto pcrs_sort = sort_spec->GetUsedColumns();
 
         if (!ColRefSetIsDisjoint(pcrs_sort, gexpr->GetGroup()->GroupProperties()->GetDefinedColumns())) {
@@ -63,8 +63,8 @@ ChildPropertyDeriver::GetProperties(Memo *memo, const std::shared_ptr<PropertySe
     case OperatorType::PhysicalStreamAgg: {
       const auto &agg = gexpr->Pop()->Cast<PhysicalStreamAgg>();
       if (const auto &sort = requirements->GetPropertyOfType(PropertyType::SORT); sort != nullptr) {
-        auto *sort_spec = sort->As<PropertySort>()->GetSortSpec();
-        OrderSpec *pos = PhysicalStreamAgg::PosCovering(sort_spec, agg.group_columns);
+        auto sort_spec = sort->As<PropertySort>()->GetSortSpec();
+        auto pos = PhysicalStreamAgg::PosCovering(sort_spec, agg.group_columns);
         if (nullptr == pos) {
           // failed to find a covering order spec, use local order spec
           pos = agg.order_spec;
@@ -86,7 +86,7 @@ ChildPropertyDeriver::GetProperties(Memo *memo, const std::shared_ptr<PropertySe
     case OperatorType::PhysicalNLJoin:
     case OperatorType::PhysicalApply: {
       if (const auto &sort = requirements->GetPropertyOfType(PropertyType::SORT); sort != nullptr) {
-        auto *sort_spec = sort->As<PropertySort>()->GetSortSpec();
+        auto sort_spec = sort->As<PropertySort>()->GetSortSpec();
         // propagate the order requirement to the outer child only if all the columns
         // specified by the order requirement come from the outer child
         auto pcrs = sort_spec->GetUsedColumns();

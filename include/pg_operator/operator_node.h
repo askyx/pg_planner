@@ -57,7 +57,7 @@ class OperatorNode {
   ColRefSet DeriveNotNullColumns();
   KeyCollection DeriveKeyCollection();
   Cardinality DeriveMaxCard();
-  CFunctionalDependencyArray DeriveFunctionalDependencies();
+  FunctionalDependencyArray DeriveFunctionalDependencies();
   ColRefSet DeriveDefinedColumns();
 
   template <class TARGET>

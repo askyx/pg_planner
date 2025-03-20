@@ -15,11 +15,11 @@ select query from tpch_queries(6); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(6);
-  transform_query   
---------------------
- LogicalGbAgg      +
- └── LogicalSelect +
-     └── LogicalGet+
+                                                                                 transform_query                                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: , agg: Pj(revenue sum((1760 l_extendedprice l_discount)))                                                                                                  +
+ └── LogicalFilter: (AND ((1098 l_shipdate Constant),(1095 l_shipdate Constant),(AND ((1757 l_discount Constant),(1755 l_discount Constant))),(1754 l_quantity (1740 Constant))))+
+     └── LogicalGet: lineitem                                                                                                                                                    +
  
 (1 row)
 

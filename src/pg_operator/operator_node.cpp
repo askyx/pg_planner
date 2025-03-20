@@ -57,7 +57,7 @@ KeyCollection OperatorNode::DeriveKeyCollection() {
   return operator_properties->DeriveKeyCollection(this);
 }
 
-CFunctionalDependencyArray OperatorNode::DeriveFunctionalDependencies() {
+FunctionalDependencyArray OperatorNode::DeriveFunctionalDependencies() {
   return operator_properties->DeriveFunctionalDependencies(this);
 }
 

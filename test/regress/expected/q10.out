@@ -37,17 +37,17 @@ select query from tpch_queries(10); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(10);
-                 transform_query                  
---------------------------------------------------
- LogicalLimit: limit: (481 Constant) offset: NULL+
- └── LogicalGbAgg                                +
-     └── LogicalJoin: INNER                      +
-         ├── LogicalJoin: INNER                  +
-         │   ├── LogicalJoin: INNER              +
-         │   │   ├── LogicalGet                  +
-         │   │   └── LogicalGet                  +
-         │   └── LogicalGet                      +
-         └── LogicalGet                          +
+                                                                                       transform_query                                                                                       
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalLimit: limit: (481 Constant) offset: NULL                                                                                                                                           +
+ └── LogicalGbAgg: group: c_custkey#0, c_name#1, c_acctbal#5, n_name#34, c_address#2, c_phone#4, c_comment#7, agg: Pj(revenue sum((1760 l_extendedprice (1759 (1740 Constant) l_discount))))+
+     └── LogicalJoin: INNER                                                                                                                                                                 +
+         ├── LogicalJoin: INNER                                                                                                                                                             +
+         │   ├── LogicalJoin: INNER                                                                                                                                                         +
+         │   │   ├── LogicalGet: customer                                                                                                                                                   +
+         │   │   └── LogicalGet: orders                                                                                                                                                     +
+         │   └── LogicalGet: lineitem                                                                                                                                                       +
+         └── LogicalGet: nation                                                                                                                                                             +
  
 (1 row)
 

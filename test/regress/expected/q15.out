@@ -42,18 +42,18 @@ select query from tpch_queries(15); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(15);
-      transform_query       
-----------------------------
- LogicalApply: EXPR_SUBLINK+
- ├── LogicalJoin: INNER    +
- │   ├── LogicalGet        +
- │   └── LogicalGbAgg      +
- │       └── LogicalSelect +
- │           └── LogicalGet+
- └── LogicalGbAgg          +
-     └── LogicalGbAgg      +
-         └── LogicalSelect +
-             └── LogicalGet+
+                                                         transform_query                                                         
+---------------------------------------------------------------------------------------------------------------------------------
+ LogicalApply: EXPR_SUBLINK                                                                                                     +
+ ├── LogicalJoin: INNER                                                                                                         +
+ │   ├── LogicalGet: supplier                                                                                                   +
+ │   └── LogicalGbAgg: group: l_suppkey#9, agg: Pj(total_revenue sum((1760 l_extendedprice (1759 (1740 Constant) l_discount)))) +
+ │       └── LogicalFilter: (AND ((1098 l_shipdate Constant),(1095 l_shipdate Constant)))                                       +
+ │           └── LogicalGet: lineitem                                                                                           +
+ └── LogicalGbAgg: group: , agg: Pj(max max(total_revenue))                                                                     +
+     └── LogicalGbAgg: group: l_suppkey#26, agg: Pj(total_revenue sum((1760 l_extendedprice (1759 (1740 Constant) l_discount))))+
+         └── LogicalFilter: (AND ((1098 l_shipdate Constant),(1095 l_shipdate Constant)))                                       +
+             └── LogicalGet: lineitem                                                                                           +
  
 (1 row)
 

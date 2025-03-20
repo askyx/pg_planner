@@ -23,27 +23,26 @@ struct ItemExpr;
 enum class ExpressionKind {
   Invalid,
 
-  EopScalarCmp,
-  EopScalarIsDistinctFrom,
-  EopScalarIdent,
-  EopScalarParam,
-  EopScalarProjectElement,
-  EopScalarConst,
-  EopScalarBoolOp,
-  EopScalarFunc,
-  EopScalarAggFunc,
-  EopScalarOp,
+  IsDistinctFrom,
+  Ident,
+  Param,
+  ProjectElement,
+  Const,
+  BoolExpr,
+  FuncExpr,
+  Aggref,
+  OpExpr,
   NullTest,
   CaseExpr,
   CaseTestExpr,
-  EopScalarCast,
-  EopScalarCoerceToDomain,
-  EopScalarCoerceViaIO,
-  EopScalarArrayCoerceExpr,
-  EopScalarCoalesce,
-  EopScalarArray,
-  EopScalarArrayCmp,
-  EopScalarSortGroupClause,
+  RelabelType,
+  CoerceToDomain,
+  CoerceViaIO,
+  ArrayCoerceExpr,
+  CoalesceExpr,
+  ArrayExpr,
+  ScalarArrayOpExpr,
+  SortGroupClause,
 };
 
 using ItemExprPtr = std::shared_ptr<ItemExpr>;
@@ -101,10 +100,10 @@ struct ItemExpr {
 };
 
 struct ItemAggref : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarAggFunc;
+  constexpr static ExpressionKind TYPE = ExpressionKind::Aggref;
 
   ItemAggref(Oid aggfnoid, Oid aggtype, bool distinct, char aggkind, List *argtypes)
-      : ItemExpr(ExpressionKind::EopScalarAggFunc),
+      : ItemExpr(ExpressionKind::Aggref),
         aggfnoid(aggfnoid),
         aggtype(aggtype),
         distinct(distinct),
@@ -131,11 +130,11 @@ struct ItemAggref : public ItemExpr {
 };
 
 struct ItemConst : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarConst;
+  constexpr static ExpressionKind TYPE = ExpressionKind::Const;
 
   Const *value;
 
-  explicit ItemConst(Const *datum) : ItemExpr(ExpressionKind::EopScalarConst), value(datum) {}
+  explicit ItemConst(Const *datum) : ItemExpr(ExpressionKind::Const), value(datum) {}
 
   hash_t Hash() const override;
 
@@ -145,14 +144,14 @@ struct ItemConst : public ItemExpr {
 };
 
 struct ItemArrayExpr : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarArray;
+  constexpr static ExpressionKind TYPE = ExpressionKind::ArrayExpr;
 
   Oid element_typeid;
   Oid array_typeid;
   bool multidims;
 
   ItemArrayExpr(Oid element_typeid, Oid array_typeid, bool multidims)
-      : ItemExpr(ExpressionKind::EopScalarArray),
+      : ItemExpr(ExpressionKind::ArrayExpr),
         element_typeid(element_typeid),
         array_typeid(array_typeid),
         multidims(multidims) {}
@@ -166,16 +165,16 @@ struct ItemArrayExpr : public ItemExpr {
   Oid ExprReturnType() const override { return array_typeid; }
 };
 
-struct ItemArrayCmp : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarArrayCmp;
+struct ItemArrayOpExpr : public ItemExpr {
+  constexpr static ExpressionKind TYPE = ExpressionKind::ScalarArrayOpExpr;
 
   Oid opno;
   Oid opfuncid;
   bool use_or;
   bool op_strict;
 
-  ItemArrayCmp(Oid opno, Oid opfuncid, bool use_or)
-      : ItemExpr(ExpressionKind::EopScalarArrayCmp), opno(opno), opfuncid(opfuncid), use_or(use_or) {}
+  ItemArrayOpExpr(Oid opno, Oid opfuncid, bool use_or)
+      : ItemExpr(ExpressionKind::ScalarArrayOpExpr), opno(opno), opfuncid(opfuncid), use_or(use_or) {}
 
   ScalarArrayOpExpr *ToScalarArrayOpExpr() const;
 
@@ -187,11 +186,11 @@ struct ItemArrayCmp : public ItemExpr {
 };
 
 struct ItemBoolExpr : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarBoolOp;
+  constexpr static ExpressionKind TYPE = ExpressionKind::BoolExpr;
 
   BoolExprType boolop;
 
-  explicit ItemBoolExpr(BoolExprType eboolop) : ItemExpr(ExpressionKind::EopScalarBoolOp), boolop(eboolop) {}
+  explicit ItemBoolExpr(BoolExprType eboolop) : ItemExpr(ExpressionKind::BoolExpr), boolop(eboolop) {}
 
   BoolExpr *ToBoolExpr() const;
 
@@ -221,14 +220,14 @@ struct ItemCaseTest : public ItemExpr {
 };
 
 struct ItemCastExpr : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarCast;
+  constexpr static ExpressionKind TYPE = ExpressionKind::RelabelType;
 
   Oid resulttype;
 
   Oid funcid;
 
   ItemCastExpr(Oid resulttype, Oid funcid)
-      : ItemExpr(ExpressionKind::EopScalarCast), resulttype(resulttype), funcid(funcid) {}
+      : ItemExpr(ExpressionKind::RelabelType), resulttype(resulttype), funcid(funcid) {}
 
   hash_t Hash() const override;
 
@@ -239,33 +238,8 @@ struct ItemCastExpr : public ItemExpr {
   Oid ExprReturnType() const override { return resulttype; }
 };
 
-struct ItemCmpExpr : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarCmp;
-
-  Oid opno;
-
-  // does operator return NULL on NULL input?
-  bool op_strict;
-
-  explicit ItemCmpExpr(Oid opno) : ItemExpr(ExpressionKind::EopScalarCmp), opno(opno) {}
-
-  hash_t Hash() const override;
-
-  bool operator==(const ItemExpr &other) const override;
-
-  OpExpr *ToOpExpr() const;
-
-  Oid ExprReturnType() const override { return BOOLOID; }
-};
-
-struct ItemIsDistinctFrom : public ItemCmpExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarIsDistinctFrom;
-
-  explicit ItemIsDistinctFrom(Oid mdid_op) : ItemCmpExpr(mdid_op) { kind = ExpressionKind::EopScalarIsDistinctFrom; }
-};
-
 struct ItemOpExpr : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarOp;
+  constexpr static ExpressionKind TYPE = ExpressionKind::OpExpr;
 
   Oid opno;
 
@@ -273,8 +247,7 @@ struct ItemOpExpr : public ItemExpr {
 
   bool op_strict;
 
-  ItemOpExpr(Oid opno, Oid opresulttype)
-      : ItemExpr(ExpressionKind::EopScalarOp), opno(opno), opresulttype(opresulttype) {}
+  ItemOpExpr(Oid opno, Oid opresulttype) : ItemExpr(ExpressionKind::OpExpr), opno(opno), opresulttype(opresulttype) {}
 
   OpExpr *ToOpExpr() const;
 
@@ -285,12 +258,18 @@ struct ItemOpExpr : public ItemExpr {
   Oid ExprReturnType() const override { return opresulttype != InvalidOid ? opresulttype : get_op_rettype(opno); }
 };
 
+struct ItemIsDistinctFrom : public ItemOpExpr {
+  constexpr static ExpressionKind TYPE = ExpressionKind::IsDistinctFrom;
+
+  explicit ItemIsDistinctFrom(Oid mdid_op) : ItemOpExpr(mdid_op, BOOLOID) { kind = ExpressionKind::IsDistinctFrom; }
+};
+
 struct ItemCoalesce : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarCoalesce;
+  constexpr static ExpressionKind TYPE = ExpressionKind::CoalesceExpr;
 
   Oid coalescetype;
 
-  explicit ItemCoalesce(Oid coalescetype) : ItemExpr(ExpressionKind::EopScalarCoalesce), coalescetype(coalescetype) {}
+  explicit ItemCoalesce(Oid coalescetype) : ItemExpr(ExpressionKind::CoalesceExpr), coalescetype(coalescetype) {}
 
   hash_t Hash() const override;
 
@@ -302,7 +281,7 @@ struct ItemCoalesce : public ItemExpr {
 };
 
 struct ItemFuncExpr : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarFunc;
+  constexpr static ExpressionKind TYPE = ExpressionKind::FuncExpr;
 
   Oid funcid;
 
@@ -314,7 +293,7 @@ struct ItemFuncExpr : public ItemExpr {
   bool op_strict;
 
   ItemFuncExpr(Oid funcid, Oid funcresulttype, bool funcvariadic)
-      : ItemExpr(ExpressionKind::EopScalarFunc),
+      : ItemExpr(ExpressionKind::FuncExpr),
         funcid(funcid),
         funcresulttype(funcresulttype),
         funcvariadic(funcvariadic) {}
@@ -329,11 +308,11 @@ struct ItemFuncExpr : public ItemExpr {
 };
 
 struct ItemIdent : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarIdent;
+  constexpr static ExpressionKind TYPE = ExpressionKind::Ident;
 
   ColRef *colref;
 
-  explicit ItemIdent(ColRef *colref) : ItemExpr(ExpressionKind::EopScalarIdent), colref(colref) {}
+  explicit ItemIdent(ColRef *colref) : ItemExpr(ExpressionKind::Ident), colref(colref) {}
 
   hash_t Hash() const override;
 
@@ -380,7 +359,7 @@ struct ItemNullTest : public ItemExpr {
 };
 
 struct ItemParam : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarParam;
+  constexpr static ExpressionKind TYPE = ExpressionKind::Param;
 
   int32_t paramid;
 
@@ -389,7 +368,7 @@ struct ItemParam : public ItemExpr {
   int32_t paramtypmod;
 
   ItemParam(int32_t paramid, Oid paramtype, int32_t paramtypmod)
-      : ItemExpr(ExpressionKind::EopScalarParam), paramid(paramid), paramtype(paramtype), paramtypmod(paramtypmod) {}
+      : ItemExpr(ExpressionKind::Param), paramid(paramid), paramtype(paramtype), paramtypmod(paramtypmod) {}
 
   hash_t Hash() const override { return HashUtil::Hash(paramid); }
 
@@ -401,11 +380,11 @@ struct ItemParam : public ItemExpr {
 };
 
 struct ItemProjectElement : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarProjectElement;
+  constexpr static ExpressionKind TYPE = ExpressionKind::ProjectElement;
 
   ColRef *colref;
 
-  explicit ItemProjectElement(ColRef *colref) : ItemExpr(ExpressionKind::EopScalarProjectElement), colref(colref) {}
+  explicit ItemProjectElement(ColRef *colref) : ItemExpr(ExpressionKind::ProjectElement), colref(colref) {}
 
   hash_t Hash() const override;
 
@@ -415,12 +394,11 @@ struct ItemProjectElement : public ItemExpr {
 };
 
 struct ItemSortGroupClause : public ItemExpr {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarSortGroupClause;
+  constexpr static ExpressionKind TYPE = ExpressionKind::SortGroupClause;
 
   SortGroupClause *expr;
 
-  explicit ItemSortGroupClause(SortGroupClause *expr)
-      : ItemExpr(ExpressionKind::EopScalarSortGroupClause), expr(expr) {}
+  explicit ItemSortGroupClause(SortGroupClause *expr) : ItemExpr(ExpressionKind::SortGroupClause), expr(expr) {}
 
   bool operator==(const ItemExpr &other) const override;
 
@@ -445,24 +423,24 @@ struct ItemCoerceBase : public ItemExpr {
 };
 
 struct ItemArrayCoerceExpr : public ItemCoerceBase {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarArrayCoerceExpr;
+  constexpr static ExpressionKind TYPE = ExpressionKind::ArrayCoerceExpr;
 
   ItemArrayCoerceExpr(Oid resulttype, int32_t resulttypmod, CoercionForm coerceformat)
-      : ItemCoerceBase(resulttype, resulttypmod, coerceformat, ExpressionKind::EopScalarArrayCoerceExpr) {}
+      : ItemCoerceBase(resulttype, resulttypmod, coerceformat, ExpressionKind::ArrayCoerceExpr) {}
 };
 
 struct ItemCoerceViaIO : public ItemCoerceBase {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarCoerceViaIO;
+  constexpr static ExpressionKind TYPE = ExpressionKind::CoerceViaIO;
 
   ItemCoerceViaIO(Oid resulttype, int32_t resulttypmod, CoercionForm coerceformat)
-      : ItemCoerceBase(resulttype, resulttypmod, coerceformat, ExpressionKind::EopScalarCoerceViaIO) {}
+      : ItemCoerceBase(resulttype, resulttypmod, coerceformat, ExpressionKind::CoerceViaIO) {}
 };
 
 struct ItemCoerceToDomain : public ItemCoerceBase {
-  constexpr static ExpressionKind TYPE = ExpressionKind::EopScalarCoerceToDomain;
+  constexpr static ExpressionKind TYPE = ExpressionKind::CoerceToDomain;
 
   ItemCoerceToDomain(Oid resulttype, int32_t resulttypmod, CoercionForm coerceformat)
-      : ItemCoerceBase(resulttype, resulttypmod, coerceformat, ExpressionKind::EopScalarCoerceToDomain) {}
+      : ItemCoerceBase(resulttype, resulttypmod, coerceformat, ExpressionKind::CoerceToDomain) {}
 };
 
 inline bool operator==(const ExprArray &p1, const ExprArray &p2) {

@@ -35,21 +35,21 @@ select query from tpch_queries(9); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(9);
-              transform_query               
---------------------------------------------
- LogicalGbAgg                              +
- └── LogicalProject                        +
-     └── LogicalJoin: INNER                +
-         ├── LogicalJoin: INNER            +
-         │   ├── LogicalJoin: INNER        +
-         │   │   ├── LogicalJoin: INNER    +
-         │   │   │   ├── LogicalJoin: INNER+
-         │   │   │   │   ├── LogicalGet    +
-         │   │   │   │   └── LogicalGet    +
-         │   │   │   └── LogicalGet        +
-         │   │   └── LogicalGet            +
-         │   └── LogicalGet                +
-         └── LogicalGet                    +
+                                                                            transform_query                                                                             
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: n_name#47, o_year#50, agg: Pj(sum_profit sum(amount))                                                                                            +
+ └── LogicalProject: Pj(o_year (6199 Constant o_orderdate)), Pj(amount (1759 (1760 l_extendedprice (1759 (1740 Constant) l_discount)) (1760 ps_supplycost l_quantity)))+
+     └── LogicalJoin: INNER                                                                                                                                            +
+         ├── LogicalJoin: INNER                                                                                                                                        +
+         │   ├── LogicalJoin: INNER                                                                                                                                    +
+         │   │   ├── LogicalJoin: INNER                                                                                                                                +
+         │   │   │   ├── LogicalJoin: INNER                                                                                                                            +
+         │   │   │   │   ├── LogicalGet: part                                                                                                                          +
+         │   │   │   │   └── LogicalGet: supplier                                                                                                                      +
+         │   │   │   └── LogicalGet: lineitem                                                                                                                          +
+         │   │   └── LogicalGet: partsupp                                                                                                                              +
+         │   └── LogicalGet: orders                                                                                                                                    +
+         └── LogicalGet: nation                                                                                                                                        +
  
 (1 row)
 

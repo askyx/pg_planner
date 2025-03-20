@@ -39,21 +39,21 @@ select query from tpch_queries(20); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(20);
-            transform_query            
----------------------------------------
- LogicalApply: ANY_SUBLINK            +
- ├── LogicalJoin: INNER               +
- │   ├── LogicalGet                   +
- │   └── LogicalGet                   +
- └── LogicalSelect                    +
-     └── LogicalApply: EXPR_SUBLINK   +
-         ├── LogicalApply: ANY_SUBLINK+
-         │   ├── LogicalGet           +
-         │   └── LogicalSelect        +
-         │       └── LogicalGet       +
-         └── LogicalGbAgg             +
-             └── LogicalSelect        +
-                 └── LogicalGet       +
+                                                                 transform_query                                                                  
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ LogicalApply: ANY_SUBLINK                                                                                                                       +
+ ├── LogicalJoin: INNER                                                                                                                          +
+ │   ├── LogicalGet: supplier                                                                                                                    +
+ │   └── LogicalGet: nation                                                                                                                      +
+ └── LogicalFilter: (AND (Constant,(1756 (1740 ps_availqty) ?column?)))                                                                          +
+     └── LogicalApply: EXPR_SUBLINK                                                                                                              +
+         ├── LogicalApply: ANY_SUBLINK                                                                                                           +
+         │   ├── LogicalGet: partsupp                                                                                                            +
+         │   └── LogicalFilter: (1209 Cast Constant)                                                                                             +
+         │       └── LogicalGet: part                                                                                                            +
+         └── LogicalGbAgg: group: , agg: Pj(?column? (1760 Constant sum(l_quantity)))                                                            +
+             └── LogicalFilter: (AND ((96 l_partkey ps_partkey),(96 l_suppkey ps_suppkey),(1098 l_shipdate Constant),(1095 l_shipdate Constant)))+
+                 └── LogicalGet: lineitem                                                                                                        +
  
 (1 row)
 

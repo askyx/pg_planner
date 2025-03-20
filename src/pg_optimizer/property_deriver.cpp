@@ -217,7 +217,7 @@ ColRefSet PropertiesDriver::DeriveOutputColumns(OperatorNode *expr) {
       return pcrs;
     }
 
-    case OperatorType::LogicalSelect: {
+    case OperatorType::LogicalFilter: {
       return expr->GetChild(0)->DeriveOutputColumns();
     }
 
@@ -309,7 +309,7 @@ KeyCollection PropertiesDriver::DeriveKeyCollection(OperatorNode *expr) {
 
       return pkc;
     }
-    case OperatorType::LogicalSelect:
+    case OperatorType::LogicalFilter:
     case OperatorType::LogicalProject:
       return expr->GetChild(0)->PdpDerive()->GetKeyCollection();
     case OperatorType::LogicalGet:
@@ -362,7 +362,7 @@ ColRefSet PropertiesDriver::DeriveNotNullColumns(OperatorNode *expr) {
       }
       return expr->GetChild(0)->DeriveNotNullColumns();
     }
-    case OperatorType::LogicalSelect:
+    case OperatorType::LogicalFilter:
     case OperatorType::LogicalProject:
       return expr->GetChild(0)->DeriveNotNullColumns();
     case OperatorType::LogicalGbAgg: {
@@ -469,7 +469,7 @@ Cardinality PropertiesDriver::DeriveMaxCard(OperatorNode *expr) {
       const auto &logical_agg = logical_operator->Cast<LogicalGbAgg>();
       return logical_agg.group_columns.size() == 0 ? 1 : 0;
     }
-    case OperatorType::LogicalSelect:
+    case OperatorType::LogicalFilter:
     case OperatorType::LogicalLimit:
     case OperatorType::LogicalProject:
       return expr->GetChild(0)->DeriveMaxCard();
@@ -547,7 +547,7 @@ ColRefSet PropertiesDriver::DeriveOuterReferences(OperatorNode *expr) {
 
       return outer_refs;
     }
-    case OperatorType::LogicalSelect: {
+    case OperatorType::LogicalFilter: {
       const auto &logical_select = logical_operator->Cast<LogicalFilter>();
       ColRefSet outer_refs = expr->GetChild(0)->DeriveOuterReferences();
 

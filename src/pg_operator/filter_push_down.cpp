@@ -89,7 +89,7 @@ OperatorNode *PushThrux(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_co
         get.filter = filter;
       return pexpr_logical;
     }
-    case OperatorType::LogicalSelect: {
+    case OperatorType::LogicalFilter: {
       auto &select = pexpr_logical->Cast<LogicalFilter>();
       OperatorNode *child_node = pexpr_logical->GetChild(0);
       auto pexpr_pred = OperatorUtils::PexprConjunction(select.filter, pexpr_conj);
@@ -230,12 +230,12 @@ OperatorNode *FilterPushDown::Process(OperatorNode *pexpr) {
     return pexpr;
 
   if (auto opid = pexpr->content->kind;
-      opid == OperatorType::LogicalJoin || opid == OperatorType::LogicalApply || opid == OperatorType::LogicalSelect) {
+      opid == OperatorType::LogicalJoin || opid == OperatorType::LogicalApply || opid == OperatorType::LogicalFilter) {
     ItemExprPtr filter;
     if (FPushThruOuterChild(pexpr))
       filter = OperatorUtils::PexprScalarConstBool(true);
     else {
-      if (opid == OperatorType::LogicalSelect) {
+      if (opid == OperatorType::LogicalFilter) {
         filter = pexpr->Cast<LogicalFilter>().filter;
       } else if (opid == OperatorType::LogicalJoin) {
         filter = pexpr->Cast<LogicalJoin>().filter;

@@ -24,13 +24,13 @@ select query from tpch_queries(13); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(13);
-      transform_query      
----------------------------
- LogicalGbAgg             +
- └── LogicalGbAgg         +
-     └── LogicalJoin: LEFT+
-         ├── LogicalGet   +
-         └── LogicalGet   +
+                            transform_query                             
+------------------------------------------------------------------------
+ LogicalGbAgg: group: count#17, agg: Pj(custdist count())              +
+ └── LogicalGbAgg: group: c_custkey#0, agg: Pj(count count(o_orderkey))+
+     └── LogicalJoin: LEFT                                             +
+         ├── LogicalGet: customer                                      +
+         └── LogicalGet: orders                                        +
  
 (1 row)
 

@@ -19,7 +19,7 @@ namespace pgp {
 
 // Generate a comparison expression over an expression and a column
 ItemExprPtr OperatorUtils::PexprScalarCmp(const ItemExprPtr &pexpr_left, ColRef *pcr_right, Oid mdid_op) {
-  auto scalar_op = std::make_shared<ItemCmpExpr>(mdid_op);
+  auto scalar_op = std::make_shared<ItemOpExpr>(mdid_op, BOOLOID);
   scalar_op->AddChild(pexpr_left);
   scalar_op->AddChild(std::make_shared<ItemIdent>(pcr_right));
   return scalar_op;
@@ -45,7 +45,7 @@ OperatorNode *OperatorUtils::PexprSafeSelect(OperatorNode *pexpr_logical, const 
 
 // check if the expression is a scalar boolean const
 bool FScalarConstBool(const ItemExprPtr &pexpr, bool value) {
-  if (ExpressionKind::EopScalarConst == pexpr->kind) {
+  if (ExpressionKind::Const == pexpr->kind) {
     auto *cvalue = pexpr->Cast<ItemConst>().value;
     if (BOOLOID == cvalue->consttype) {
       return !cvalue->constisnull && (bool)cvalue->constvalue == value;
@@ -67,7 +67,7 @@ bool OperatorUtils::FScalarConstFalse(const ItemExprPtr &pexpr) {
 
 // is the given expression a scalar bool op of the passed type?
 bool OperatorUtils::FScalarBoolOp(const ItemExprPtr &pexpr, BoolExprType eboolop) {
-  return ExpressionKind::EopScalarBoolOp == pexpr->kind && eboolop == pexpr->Cast<ItemBoolExpr>().boolop;
+  return ExpressionKind::BoolExpr == pexpr->kind && eboolop == pexpr->Cast<ItemBoolExpr>().boolop;
 }
 
 // recursively collect conjuncts
@@ -176,7 +176,7 @@ ItemExprPtr OperatorUtils::PexprConjunction(const ItemExprPtr &pexpr_one, const 
 // is the given expression in the form (expr Is NOT DISTINCT FROM expr)
 bool OperatorUtils::FINDF(const ItemExprPtr &pexpr) {
   if (FNot(pexpr)) {
-    return pexpr->GetChild(0)->kind == ExpressionKind::EopScalarIsDistinctFrom;
+    return pexpr->GetChild(0)->kind == ExpressionKind::IsDistinctFrom;
   }
   return false;
 }

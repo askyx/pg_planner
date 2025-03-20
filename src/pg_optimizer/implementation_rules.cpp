@@ -48,7 +48,7 @@ void ImplementLimit::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode
 }
 
 Select2Filter::Select2Filter() {
-  match_pattern_ = new Pattern(OperatorType::LogicalSelect);
+  match_pattern_ = new Pattern(OperatorType::LogicalFilter);
   match_pattern_->AddChild(new Pattern(OperatorType::LEAF));
   rule_type_ = ExfSelect2Filter;
 }

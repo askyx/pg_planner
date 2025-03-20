@@ -43,21 +43,21 @@ select query from tpch_queries(7); \gset
 (1 row)
 
 select transform_query(query) from tpch_queries(7);
-              transform_query               
---------------------------------------------
- LogicalGbAgg                              +
- └── LogicalProject                        +
-     └── LogicalJoin: INNER                +
-         ├── LogicalJoin: INNER            +
-         │   ├── LogicalJoin: INNER        +
-         │   │   ├── LogicalJoin: INNER    +
-         │   │   │   ├── LogicalJoin: INNER+
-         │   │   │   │   ├── LogicalGet    +
-         │   │   │   │   └── LogicalGet    +
-         │   │   │   └── LogicalGet        +
-         │   │   └── LogicalGet            +
-         │   └── LogicalGet                +
-         └── LogicalGet                    +
+                                                        transform_query                                                         
+--------------------------------------------------------------------------------------------------------------------------------
+ LogicalGbAgg: group: n_name#41, n_name#45, l_year#48, agg: Pj(revenue sum(volume))                                            +
+ └── LogicalProject: Pj(l_year (6199 Constant l_shipdate)), Pj(volume (1760 l_extendedprice (1759 (1740 Constant) l_discount)))+
+     └── LogicalJoin: INNER                                                                                                    +
+         ├── LogicalJoin: INNER                                                                                                +
+         │   ├── LogicalJoin: INNER                                                                                            +
+         │   │   ├── LogicalJoin: INNER                                                                                        +
+         │   │   │   ├── LogicalJoin: INNER                                                                                    +
+         │   │   │   │   ├── LogicalGet: supplier                                                                              +
+         │   │   │   │   └── LogicalGet: lineitem                                                                              +
+         │   │   │   └── LogicalGet: orders                                                                                    +
+         │   │   └── LogicalGet: customer                                                                                      +
+         │   └── LogicalGet: n1                                                                                                +
+         └── LogicalGet: n2                                                                                                    +
  
 (1 row)
 

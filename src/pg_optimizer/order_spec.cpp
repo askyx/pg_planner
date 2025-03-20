@@ -8,7 +8,7 @@
 namespace pgp {
 
 // this > pos
-bool OrderSpec::Satisfies(const OrderSpec *pos) const {
+bool OrderSpec::Satisfies(const std::shared_ptr<OrderSpec> &pos) const {
   if (sort_array_.size() < pos->sort_array_.size())
     return false;
 

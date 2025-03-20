@@ -27,9 +27,10 @@ class PhysicalSort : public PhysicalOperator {
  public:
   constexpr static OperatorType TYPE = OperatorType::PhysicalSort;
 
-  OrderSpec *order_spec;
+  std::shared_ptr<OrderSpec> order_spec;
 
-  explicit PhysicalSort(OrderSpec *pos) : PhysicalOperator(OperatorType::PhysicalSort), order_spec(pos) {}
+  explicit PhysicalSort(std::shared_ptr<OrderSpec> pos)
+      : PhysicalOperator(OperatorType::PhysicalSort), order_spec(std::move(pos)) {}
 
   hash_t Hash() const override;
 
@@ -65,14 +66,14 @@ class PhysicalLimit : public PhysicalOperator {
  public:
   constexpr static OperatorType TYPE = OperatorType::PhysicalLimit;
 
-  OrderSpec *order_spec;
+  std::shared_ptr<OrderSpec> order_spec;
 
   ItemExprPtr limit;
   ItemExprPtr offset;
 
-  explicit PhysicalLimit(OrderSpec *pos, ItemExprPtr limit, ItemExprPtr offset)
+  explicit PhysicalLimit(std::shared_ptr<OrderSpec> pos, ItemExprPtr limit, ItemExprPtr offset)
       : PhysicalOperator(OperatorType::PhysicalLimit),
-        order_spec(pos),
+        order_spec(std::move(pos)),
         limit(std::move(limit)),
         offset(std::move(offset)) {}
 
@@ -169,9 +170,10 @@ class PhysicalStreamAgg : public PhysicalAgg {
  public:
   constexpr static OperatorType TYPE = OperatorType::PhysicalStreamAgg;
 
-  OrderSpec *order_spec;
+  std::shared_ptr<OrderSpec> order_spec;
 
-  static OrderSpec *PosCovering(OrderSpec *pos_required, const ColRefArray &pdrgpcr_grp);
+  static std::shared_ptr<OrderSpec> PosCovering(const std::shared_ptr<OrderSpec> &pos_required,
+                                                const ColRefArray &pdrgpcr_grp);
 
   PhysicalStreamAgg(ColRefArray colref_array, ExprArray project_exprs);
 

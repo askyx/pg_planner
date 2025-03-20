@@ -6,12 +6,12 @@
 \getenv libdir PG_LIBDIR
 \getenv dlsuffix PG_DLSUFFIX
 \set regresslib :libdir '/regress' :dlsuffix
-select * from orca_test;
+select * from planner_test;
  Test | Status | Details 
 ------+--------+---------
 (0 rows)
 
-set pg_orca.enable_orca to off;
+set pg_orca.enable_planner to off;
 create extension pg_tpch;
 --
 -- synchronous_commit=off delays when hint bits may be set. Some plans change

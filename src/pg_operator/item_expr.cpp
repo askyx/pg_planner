@@ -24,7 +24,7 @@ hash_t ItemExpr::Hash() const {
 }
 
 ColRefSet ItemExpr::DeriveUsedColumns() {
-  if (kind == ExpressionKind::EopScalarIdent) {
+  if (kind == ExpressionKind::Ident) {
     return ColRefSet({Cast<ItemIdent>().colref});
   }
 
@@ -45,7 +45,7 @@ bool ItemExpr::operator==(const ItemExpr &other) const {
 
 std::string ItemExpr::ToString() const {
   switch (kind) {
-    case pgp::ExpressionKind::EopScalarAggFunc: {
+    case pgp::ExpressionKind::Aggref: {
       const auto &agg = Cast<ItemAggref>();
       auto *agg_name = get_func_name(agg.aggfnoid);
       std::string args;
@@ -57,10 +57,10 @@ std::string ItemExpr::ToString() const {
       return std::format("{}({})", agg_name, args);
     }
 
-    case pgp::ExpressionKind::EopScalarConst: {
+    case pgp::ExpressionKind::Const: {
       return "Constant";
     }
-    case pgp::ExpressionKind::EopScalarArray: {
+    case pgp::ExpressionKind::ArrayExpr: {
       std::string args;
       for (const auto &child : children)
         args += child->ToString() + " ";
@@ -69,12 +69,12 @@ std::string ItemExpr::ToString() const {
         args.pop_back();
       return std::format("Array[{}]", args);
     }
-    case pgp::ExpressionKind::EopScalarArrayCmp: {
-      const auto &array_cmp = Cast<ItemArrayCmp>();
+    case pgp::ExpressionKind::ScalarArrayOpExpr: {
+      const auto &array_cmp = Cast<ItemArrayOpExpr>();
       return std::format("({} {} {})", children[0]->ToString(), array_cmp.use_or ? "ANY" : "ALL",
                          children[1]->ToString());
     }
-    case pgp::ExpressionKind::EopScalarBoolOp: {
+    case pgp::ExpressionKind::BoolExpr: {
       const auto &bool_op = Cast<ItemBoolExpr>();
       if (bool_op.boolop == NOT_EXPR)
         return std::format("NOT {}", children[0]->ToString());
@@ -92,16 +92,11 @@ std::string ItemExpr::ToString() const {
     case pgp::ExpressionKind::CaseTestExpr:
       return "CaseTest";
 
-    case pgp::ExpressionKind::EopScalarCast:
+    case pgp::ExpressionKind::RelabelType:
       return "Cast";
 
-    case pgp::ExpressionKind::EopScalarIsDistinctFrom:
-    case pgp::ExpressionKind::EopScalarCmp: {
-      const auto &scalar_cmp = Cast<ItemCmpExpr>();
-      return std::format("({} {} {})", children[0]->ToString(), scalar_cmp.opno, children[1]->ToString());
-    }
-
-    case pgp::ExpressionKind::EopScalarOp: {
+    case pgp::ExpressionKind::IsDistinctFrom:
+    case pgp::ExpressionKind::OpExpr: {
       const auto &scalar_op = Cast<ItemOpExpr>();
       std::string args;
       for (const auto &child : children)
@@ -112,10 +107,10 @@ std::string ItemExpr::ToString() const {
       return std::format("({} {})", scalar_op.opno, args);
     }
 
-    case pgp::ExpressionKind::EopScalarCoalesce:
+    case pgp::ExpressionKind::CoalesceExpr:
       return "Coalesce";
 
-    case pgp::ExpressionKind::EopScalarFunc: {
+    case pgp::ExpressionKind::FuncExpr: {
       const auto &scalar_func = Cast<ItemFuncExpr>();
       std::string args;
       for (const auto &child : children)
@@ -126,14 +121,14 @@ std::string ItemExpr::ToString() const {
       return std::format("({} {})", scalar_func.funcid, args);
     }
 
-    case pgp::ExpressionKind::EopScalarIdent: {
+    case pgp::ExpressionKind::Ident: {
       const auto *ident = Cast<ItemIdent>().colref;
       return ident->CrefName();
     }
     case pgp::ExpressionKind::CaseExpr:
       return "Switch";
 
-    case pgp::ExpressionKind::EopScalarProjectElement: {
+    case pgp::ExpressionKind::ProjectElement: {
       const auto &project_element = Cast<ItemProjectElement>();
       std::string args;
       for (const auto &child : children)
@@ -224,7 +219,7 @@ bool ItemConst::operator==(const ItemExpr &other) const {
   return false;
 }
 
-hash_t ItemArrayCmp::Hash() const {
+hash_t ItemArrayOpExpr::Hash() const {
   auto hash = ItemExpr::Hash();
   hash = HashUtil::CombineHashes(hash, HashUtil::Hash(opno));
   hash = HashUtil::CombineHashes(hash, HashUtil::Hash(opfuncid));
@@ -232,7 +227,7 @@ hash_t ItemArrayCmp::Hash() const {
   return hash;
 }
 
-ScalarArrayOpExpr *ItemArrayCmp::ToScalarArrayOpExpr() const {
+ScalarArrayOpExpr *ItemArrayOpExpr::ToScalarArrayOpExpr() const {
   ScalarArrayOpExpr *array_op_expr = makeNode(ScalarArrayOpExpr);
   array_op_expr->opno = opno;
   array_op_expr->opfuncid = opfuncid;
@@ -240,9 +235,9 @@ ScalarArrayOpExpr *ItemArrayCmp::ToScalarArrayOpExpr() const {
   return array_op_expr;
 }
 
-bool ItemArrayCmp::operator==(const ItemExpr &other) const {
+bool ItemArrayOpExpr::operator==(const ItemExpr &other) const {
   if (ItemExpr::operator==(other)) {
-    const auto &array_cmp = Cast<ItemArrayCmp>();
+    const auto &array_cmp = Cast<ItemArrayOpExpr>();
 
     return (opno == array_cmp.opno && opfuncid == array_cmp.opfuncid && use_or == array_cmp.use_or);
   }
@@ -373,33 +368,6 @@ Expr *ItemCastExpr::ToExpr() const {
   relabel_type->relabelformat = COERCE_IMPLICIT_CAST;
 
   return (Expr *)relabel_type;
-}
-
-hash_t ItemCmpExpr::Hash() const {
-  auto hash = ItemExpr::Hash();
-  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(opno));
-  return hash;
-}
-
-bool ItemCmpExpr::operator==(const ItemExpr &other) const {
-  if (ItemExpr::operator==(other)) {
-    const auto &cmp_expr = Cast<ItemCmpExpr>();
-
-    return (opno == cmp_expr.opno);
-  }
-
-  return false;
-}
-
-OpExpr *ItemCmpExpr::ToOpExpr() const {
-  OpExpr *op_expr = makeNode(OpExpr);
-  op_expr->opno = opno;
-  op_expr->opfuncid = Catalog::GetOpCode(op_expr->opno);
-  op_expr->opresulttype = BOOLOID;
-  op_expr->opretset = false;
-  op_expr->opcollid = get_typcollation(op_expr->opresulttype);
-
-  return op_expr;
 }
 
 hash_t ItemCoalesce::Hash() const {
