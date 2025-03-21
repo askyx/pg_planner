@@ -192,8 +192,8 @@ bool PhysicalStreamAgg::operator==(const Operator &other) const {
   return false;
 }
 
-bool PhysicalJoin::FPredKeysSeparated(OperatorNode *pexpr_inner, OperatorNode *pexpr_outer,
-                                      const ItemExprPtr &pexpr_pred_inner, const ItemExprPtr &pexpr_pred_outer) {
+bool FPredKeysSeparated(const OperatorNodePtr &pexpr_inner, const OperatorNodePtr &pexpr_outer,
+                        const ItemExprPtr &pexpr_pred_inner, const ItemExprPtr &pexpr_pred_outer) {
   auto pcrs_used_pred_outer = pexpr_pred_outer->DeriveUsedColumns();
   auto pcrs_used_pred_inner = pexpr_pred_inner->DeriveUsedColumns();
 
@@ -215,8 +215,8 @@ bool PhysicalJoin::FPredKeysSeparated(OperatorNode *pexpr_inner, OperatorNode *p
          (f_pred_outer_uses_join_inner_child && f_pred_inner_uses_join_outer_child);
 }
 
-bool PhysicalJoin::FHashJoinCompatible(const ItemExprPtr &pexpr_pred, OperatorNode *pexpr_outer,
-                                       OperatorNode *pexpr_inner) {
+bool PhysicalJoin::FHashJoinCompatible(const ItemExprPtr &pexpr_pred, const OperatorNodePtr &pexpr_outer,
+                                       const OperatorNodePtr &pexpr_inner) {
   ItemExprPtr pexpr_pred_outer = nullptr;
   ItemExprPtr pexpr_pred_inner = nullptr;
   if (OperatorUtils::FINDF(pexpr_pred)) {
@@ -233,9 +233,9 @@ bool PhysicalJoin::FHashJoinCompatible(const ItemExprPtr &pexpr_pred, OperatorNo
 // Check for equality and INDFs in the predicates, and also aligns the expressions inner and outer keys with the
 // predicates For example foo (a int, b int) and bar (c int, d int), will need to be aligned properly if the predicate
 // is d = a)
-void PhysicalJoin::AlignJoinKeyOuterInner(const ItemExprPtr &pexpr_pred, OperatorNode *pexpr_outer,
-                                          OperatorNode *pexpr_inner, ItemExprPtr *ppexpr_key_outer,
-                                          ItemExprPtr *ppexpr_key_inner) {
+void PhysicalJoin::AlignJoinKeyOuterInner(const ItemExprPtr &pexpr_pred, const OperatorNodePtr &pexpr_outer,
+                                          const OperatorNodePtr &pexpr_inner, ItemExprPtr &ppexpr_key_outer,
+                                          ItemExprPtr &ppexpr_key_inner) {
   ItemExprPtr pexpr_pred_outer = nullptr;
   ItemExprPtr pexpr_pred_inner = nullptr;
 
@@ -252,13 +252,13 @@ void PhysicalJoin::AlignJoinKeyOuterInner(const ItemExprPtr &pexpr_pred, Operato
   auto pcrs_pred_outer = pexpr_pred_outer->DeriveUsedColumns();
 
   if (ContainsAll(pcrs_outer, pcrs_pred_outer)) {
-    *ppexpr_key_outer = pexpr_pred_outer;
+    ppexpr_key_outer = pexpr_pred_outer;
 
-    *ppexpr_key_inner = pexpr_pred_inner;
+    ppexpr_key_inner = pexpr_pred_inner;
   } else {
-    *ppexpr_key_outer = pexpr_pred_inner;
+    ppexpr_key_outer = pexpr_pred_inner;
 
-    *ppexpr_key_inner = pexpr_pred_outer;
+    ppexpr_key_inner = pexpr_pred_outer;
   }
 }
 

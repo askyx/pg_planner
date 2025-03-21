@@ -1,8 +1,5 @@
 #pragma once
 
-#include <unordered_map>
-#include <vector>
-
 #include "common/exception.h"
 #include "pg_catalog/catalog.h"
 #include "pg_optimizer/colref_pool.h"
@@ -11,9 +8,6 @@
 #include "pg_optimizer/memo.h"
 #include "pg_optimizer/optimizer_task.h"
 #include "postgres_ext.h"
-extern "C" {
-#include "nodes/parsenodes.h"
-}
 
 namespace pgp {
 
@@ -33,13 +27,13 @@ class OptimizerContext {
 
   ColRefPool &GetColumnFactory() { return column_factory_; }
 
-  GroupExpression *MakeGroupExpression(OperatorNode *node);
+  GroupExpression *MakeGroupExpression(const OperatorNodePtr &node);
 
-  bool RecordOptimizerNodeIntoGroup(OperatorNode *node, GroupExpression **gexpr) {
+  bool RecordOptimizerNodeIntoGroup(const OperatorNodePtr &node, GroupExpression **gexpr) {
     return RecordOptimizerNodeIntoGroup(node, gexpr, nullptr);
   }
 
-  bool RecordOptimizerNodeIntoGroup(OperatorNode *node, GroupExpression **gexpr, Group *target_group) {
+  bool RecordOptimizerNodeIntoGroup(const OperatorNodePtr &node, GroupExpression **gexpr, Group *target_group) {
     auto *new_gexpr = MakeGroupExpression(node);
     auto *ptr = memo_.InsertExpression(node, new_gexpr, target_group, false);
     PGP_ASSERT(ptr, "Root of expr should not fail insertion");

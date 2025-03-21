@@ -10,17 +10,6 @@ namespace pgp {
 
 class Operator;
 
-enum class SubQueryType {
-  INVALID,
-  ALL_SUBLINK,
-
-  ANY_SUBLINK,
-  EXISTS_SUBLINK,
-
-  EXPR_SUBLINK,
-
-};
-
 enum class OperatorType {
   Invalid,
 

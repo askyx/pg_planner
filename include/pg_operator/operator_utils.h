@@ -3,7 +3,6 @@
 #include "pg_operator/item_expr.h"
 #include "pg_operator/operator_node.h"
 #include "pg_optimizer/colref.h"
-#include "pg_optimizer/rule.h"
 
 namespace pgp {
 
@@ -17,7 +16,7 @@ class OperatorUtils {
   static ItemExprPtr PexprScalarCmp(const ItemExprPtr &pexpr_left, ColRef *pcr_right, Oid mdid_op);
 
   // if predicate is True return logical expression, otherwise return a new select node
-  static OperatorNode *PexprSafeSelect(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_predicate);
+  static OperatorNodePtr PexprSafeSelect(OperatorNodePtr pexpr_logical, const ItemExprPtr &pexpr_predicate);
 
   // generate a bool expression
   static ItemExprPtr PexprScalarConstBool(bool value, bool is_null = false);

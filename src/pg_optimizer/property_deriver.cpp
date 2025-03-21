@@ -9,7 +9,6 @@
 #include "pg_operator/physical_operator.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/group_expression.h"
-#include "pg_optimizer/order_spec.h"
 
 extern "C" {
 #include <nodes/nodes.h>
@@ -177,7 +176,7 @@ ColRefSet PropertiesDriver::DeriveOutputColumns(OperatorNode *expr) {
       ColRefSet pcrs;
 
       // union columns from the first N-1 children
-      for (auto *child : expr->children)
+      for (const auto &child : expr->children)
         ColRefSetUnion(pcrs, child->DeriveOutputColumns());
 
       return pcrs;
@@ -189,12 +188,11 @@ ColRefSet PropertiesDriver::DeriveOutputColumns(OperatorNode *expr) {
 
     case OperatorType::LogicalApply: {
       const auto &logical_apply = logical_operator->Cast<LogicalApply>();
-      if (logical_apply.subquery_type == SubQueryType::EXPR_SUBLINK) {
+      if (logical_apply.subquery_type == EXPR_SUBLINK) {
         ColRefSet pcrs;
 
         // union columns from the first N-1 children
-
-        for (auto *child : expr->children)
+        for (const auto &child : expr->children)
           ColRefSetUnion(pcrs, child->DeriveOutputColumns());
 
         return pcrs;
@@ -242,14 +240,14 @@ KeyCollection PropertiesDriver::DeriveKeyCollection(OperatorNode *expr) {
 
   switch (logical_operator->kind) {
     case OperatorType::LogicalLimit:
-      return expr->GetChild(0)->PdpDerive()->GetKeyCollection();
+      return expr->GetChild(0)->DeriveProp()->GetKeyCollection();
     case OperatorType::LogicalJoin: {
       const auto &logical_join = logical_operator->Cast<LogicalJoin>();
       if (logical_join.join_type == JOIN_ANTI || logical_join.join_type == JOIN_SEMI)
-        return expr->GetChild(0)->PdpDerive()->GetKeyCollection();
+        return expr->GetChild(0)->DeriveProp()->GetKeyCollection();
 
       ColRefSet pcrs;
-      for (auto *child : expr->children) {
+      for (const auto &child : expr->children) {
         auto pkc = child->DeriveKeyCollection();
         if (pkc.empty()) {
           // if a child has no key, the operator has no key
@@ -265,12 +263,11 @@ KeyCollection PropertiesDriver::DeriveKeyCollection(OperatorNode *expr) {
 
     case OperatorType::LogicalApply: {
       const auto &logical_apply = logical_operator->Cast<LogicalApply>();
-      if (auto subquery_type = logical_apply.subquery_type; subquery_type == SubQueryType::ALL_SUBLINK ||
-                                                            subquery_type == SubQueryType::ANY_SUBLINK ||
-                                                            subquery_type == SubQueryType::EXISTS_SUBLINK)
-        return expr->GetChild(0)->PdpDerive()->GetKeyCollection();
+      if (auto subquery_type = logical_apply.subquery_type;
+          subquery_type == ALL_SUBLINK || subquery_type == ANY_SUBLINK || subquery_type == EXISTS_SUBLINK)
+        return expr->GetChild(0)->DeriveProp()->GetKeyCollection();
       ColRefSet pcrs;
-      for (auto *child : expr->children) {
+      for (const auto &child : expr->children) {
         auto pkc = child->DeriveKeyCollection();
         if (pkc.empty()) {
           // if a child has no key, the operator has no key
@@ -311,7 +308,7 @@ KeyCollection PropertiesDriver::DeriveKeyCollection(OperatorNode *expr) {
     }
     case OperatorType::LogicalFilter:
     case OperatorType::LogicalProject:
-      return expr->GetChild(0)->PdpDerive()->GetKeyCollection();
+      return expr->GetChild(0)->DeriveProp()->GetKeyCollection();
     case OperatorType::LogicalGet:
       return {};
 
@@ -333,7 +330,7 @@ ColRefSet PropertiesDriver::DeriveNotNullColumns(OperatorNode *expr) {
         ColRefSet pcrs;
 
         // union not nullable columns from the first N-1 children
-        for (auto *child : expr->children)
+        for (const auto &child : expr->children)
           ColRefSetUnion(pcrs, child->DeriveDefinedColumns());
 
         return pcrs;
@@ -350,12 +347,12 @@ ColRefSet PropertiesDriver::DeriveNotNullColumns(OperatorNode *expr) {
 
     case OperatorType::LogicalApply: {
       const auto &logical_apply = logical_operator->Cast<LogicalApply>();
-      if (logical_apply.subquery_type == SubQueryType::EXPR_SUBLINK) {
+      if (logical_apply.subquery_type == EXPR_SUBLINK) {
         ColRefSet pcrs;
 
         // union not nullable columns from the first N-1 children
 
-        for (auto *child : expr->children)
+        for (const auto &child : expr->children)
           ColRefSetUnion(pcrs, child->DeriveNotNullColumns());
 
         return pcrs;
@@ -406,7 +403,7 @@ ColRefSet PropertiesDriver::DeriveNotNullColumns(OperatorNode *expr) {
 static Cardinality MaxcardDef(OperatorNode *expr) {
   Cardinality maxcard = 1;
 
-  for (auto *child : expr->children) {
+  for (const auto &child : expr->children) {
     maxcard *= child->DeriveMaxCard();
   }
 
@@ -456,11 +453,10 @@ Cardinality PropertiesDriver::DeriveMaxCard(OperatorNode *expr) {
     case OperatorType::LogicalApply: {
       const auto &logical_apply = logical_operator->Cast<LogicalApply>();
       auto subquery_type = logical_apply.subquery_type;
-      if (subquery_type == SubQueryType::ANY_SUBLINK || subquery_type == SubQueryType::EXISTS_SUBLINK ||
-          subquery_type == SubQueryType::EXPR_SUBLINK)
+      if (subquery_type == ANY_SUBLINK || subquery_type == EXISTS_SUBLINK || subquery_type == EXPR_SUBLINK)
         return expr->GetChild(0)->DeriveMaxCard();
 
-      if (subquery_type == SubQueryType::EXPR_SUBLINK)
+      if (subquery_type == EXPR_SUBLINK)
         return MaxcardDef(expr);
       // pass on max card of first child
       return expr->GetChild(0)->DeriveMaxCard();
@@ -491,7 +487,7 @@ static ColRefSet DeriveOuterReferences(OperatorNode *expr, const ColRefSet &pcrs
   ColRefSet pcrs_output;
 
   ColRefSet pcrs_used;
-  for (auto *child : expr->children) {
+  for (const auto &child : expr->children) {
     // add outer references from relational children
     ColRefSetUnion(outer_refs, child->DeriveOuterReferences());
     ColRefSetUnion(pcrs_output, child->DeriveOutputColumns());
@@ -524,7 +520,7 @@ ColRefSet PropertiesDriver::DeriveOuterReferences(OperatorNode *expr) {
       const auto &logical_agg = logical_operator->Cast<LogicalGbAgg>();
       auto pcrs_grp = ColRefArrayToSet(logical_agg.group_columns);
 
-      auto *child = expr->GetChild(0);
+      auto child = expr->GetChild(0);
       ColRefSet outer_refs = child->DeriveOuterReferences();
 
       // collect output columns from relational children

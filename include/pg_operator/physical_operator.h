@@ -88,13 +88,13 @@ class PhysicalApply : public PhysicalOperator {
 
   ColRefArray expr_refs;
 
-  SubQueryType subquery_type;
+  SubLinkType subquery_type;
 
   bool is_not_subquery;
 
   ItemExprPtr filter;
 
-  PhysicalApply(ColRefArray expr_refs, SubQueryType subquery_type, bool is_not_subquery, ItemExprPtr filter)
+  PhysicalApply(ColRefArray expr_refs, SubLinkType subquery_type, bool is_not_subquery, ItemExprPtr filter)
       : PhysicalOperator(OperatorType::PhysicalApply),
         expr_refs(std::move(expr_refs)),
         subquery_type(subquery_type),
@@ -190,14 +190,12 @@ class PhysicalJoin : public PhysicalOperator {
 
   ItemExprPtr filter;
 
-  static bool FPredKeysSeparated(OperatorNode *pexpr_inner, OperatorNode *pexpr_outer,
-                                 const ItemExprPtr &pexpr_pred_inner, const ItemExprPtr &pexpr_pred_outer);
+  static bool FHashJoinCompatible(const ItemExprPtr &pexpr_pred, const OperatorNodePtr &pexpr_outer,
+                                  const OperatorNodePtr &pexpr_inner);
 
-  static bool FHashJoinCompatible(const ItemExprPtr &pexpr_pred, OperatorNode *pexpr_outer, OperatorNode *pexpr_inner);
-
-  static void AlignJoinKeyOuterInner(const ItemExprPtr &pexpr_pred, OperatorNode *pexpr_outer,
-                                     OperatorNode *pexpr_inner, ItemExprPtr *ppexpr_key_outer,
-                                     ItemExprPtr *ppexpr_key_inner);
+  static void AlignJoinKeyOuterInner(const ItemExprPtr &pexpr_pred, const OperatorNodePtr &pexpr_outer,
+                                     const OperatorNodePtr &pexpr_inner, ItemExprPtr &ppexpr_key_outer,
+                                     ItemExprPtr &ppexpr_key_inner);
 
   PhysicalJoin(OperatorType type, JoinType join_type, ItemExprPtr filter)
       : PhysicalOperator(type), join_type(join_type), filter(std::move(filter)) {}

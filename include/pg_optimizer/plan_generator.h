@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "pg_operator/item_expr.h"
-#include "pg_operator/operator_node.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/group_expression.h"
 extern "C" {
@@ -63,7 +62,7 @@ struct PlanMeta {
 
   PlanMeta &GenerateAgg(int plan_node_id, const PhysicalAgg &agg_node);
 
-  PlanMeta &GenerateSubplan(SubLinkType slinktype, const PhysicalApply &apply);
+  PlanMeta &GenerateSubplan(const PhysicalApply &apply);
 
   PlanMeta &SetAggGroupInfo(const PhysicalAgg &agg_node);
 

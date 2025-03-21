@@ -6,7 +6,6 @@
 #include "pg_operator/operator.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/group.h"
-#include "pg_optimizer/operator_prop.h"
 #include "pg_optimizer/optimization_context.h"
 #include "pg_optimizer/pattern.h"
 
@@ -17,7 +16,7 @@ Memo::~Memo() {
     delete group;
 }
 
-GroupExpression *Memo::InsertExpression(OperatorNode *node, GroupExpression *gexpr, Group *target_group,
+GroupExpression *Memo::InsertExpression(const OperatorNodePtr &node, GroupExpression *gexpr, Group *target_group,
                                         bool enforced) {
   // If leaf, then just return
   if (gexpr->Pop()->kind == OperatorType::LEAF) {
@@ -53,10 +52,10 @@ GroupExpression *Memo::InsertExpression(OperatorNode *node, GroupExpression *gex
   return gexpr;
 }
 
-Group *Memo::AddNewGroup(OperatorNode *node, GroupExpression *gexpr) {
+Group *Memo::AddNewGroup(const OperatorNodePtr &node, GroupExpression *gexpr) {
   auto new_group_id = (int32_t)groups_.size();
 
-  auto *group = new Group(new_group_id, node->PdpDerive());
+  auto *group = new Group(new_group_id, node->DeriveProp());
   groups_.push_back(group);
   return group;
 }

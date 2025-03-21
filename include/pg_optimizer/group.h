@@ -4,6 +4,7 @@
 #include <memory>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 
 #include "pg_optimizer/property.h"
 
@@ -19,7 +20,7 @@ class Group {
  private:
   int32_t group_id_;
 
-  OperatorProperties *group_properties_;
+  std::shared_ptr<OperatorProperties> group_properties_;
 
   bool has_explored_{false};
 
@@ -32,7 +33,8 @@ class Group {
       lowest_cost_expressions_;
 
  public:
-  Group(int32_t group_id, OperatorProperties *properties) : group_id_(group_id), group_properties_(properties) {}
+  Group(int32_t group_id, std::shared_ptr<OperatorProperties> properties)
+      : group_id_(group_id), group_properties_(std::move(properties)) {}
 
   ~Group();
 
@@ -57,7 +59,7 @@ class Group {
 
   int32_t GetGroupId() const { return group_id_; }
 
-  OperatorProperties *GroupProperties() const { return group_properties_; }
+  std::shared_ptr<OperatorProperties> GroupProperties() const { return group_properties_; }
 
   // lookup best expression under given optimization context
   GroupExpression *GetBestExpression(const std::shared_ptr<PropertySet> &properties);

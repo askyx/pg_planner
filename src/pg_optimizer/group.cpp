@@ -3,14 +3,11 @@
 #include "pg_optimizer/group.h"
 
 #include "pg_optimizer/group_expression.h"
-#include "pg_optimizer/operator_prop.h"
 #include "pg_optimizer/optimization_context.h"
 
 namespace pgp {
 
 Group::~Group() {
-  delete group_properties_;
-
   for (auto *pgexpr : logical_expressions_)
     delete pgexpr;
 

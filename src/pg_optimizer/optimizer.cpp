@@ -11,7 +11,6 @@
 #include "main/from_pg_query.h"
 #include "nodes/pg_list.h"
 #include "nodes/primnodes.h"
-#include "pg_operator/logical_operator.h"
 #include "pg_operator/normalizer.h"
 #include "pg_operator/operator.h"
 #include "pg_operator/operator_node.h"
@@ -58,7 +57,7 @@ PlannedStmt *Optimizer::Planner() {
 QueryInfo &QueryInfo::Normalizer() {
   expr = Normalizer::NormalizerTree(expr);
 
-  OLOG("query after normalization:\n{}", Format<OperatorNode>::ToString(expr));
+  OLOG("query after normalization:\n{}", Format<OperatorNodePtr>::ToString(expr));
 
   return *this;
 }
@@ -66,9 +65,9 @@ QueryInfo &QueryInfo::Normalizer() {
 QueryInfo Optimizer::QueryToOperator() {
   TranslatorQuery transformer{&context, query};
 
-  auto *tree = transformer.TranslateQuery();
+  auto tree = transformer.TranslateQuery();
 
-  OLOG("query from query:\n{}\n{}", debug_query_string, Format<OperatorNode>::ToString(tree));
+  OLOG("query from query:\n{}\n{}", debug_query_string, Format<OperatorNodePtr>::ToString(tree));
 
   std::vector<std::string> output_col_names;
 

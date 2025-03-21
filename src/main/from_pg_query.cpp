@@ -46,7 +46,7 @@ extern "C" {
 
 namespace pgp {
 
-OperatorNode *TranslatorQuery::TranslateQuery() {
+OperatorNodePtr TranslatorQuery::TranslateQuery() {
   // TODO: other commands
   switch (query_->commandType) {
     case CMD_SELECT:
@@ -66,14 +66,14 @@ static bool IsSortGrouColumn(const TargetEntry *target_entry, List *group_clause
   return false;
 }
 
-OperatorNode *TranslatorQuery::TranslateSelect() {
+OperatorNodePtr TranslatorQuery::TranslateSelect() {
   std::unordered_map<Index, ColRef *> sort_group_attno_to_colid_mapping;
 
   if (nullptr != query_->setOperations)
     throw OptException("TODO setOperations");
 
   // from and where
-  auto *root = TranslateNode(query_->jointree);
+  auto root = TranslateNode(query_->jointree);
 
   ExprArray project_exprs;
 
@@ -82,7 +82,7 @@ OperatorNode *TranslatorQuery::TranslateSelect() {
   // 3. 有 aggnode 则保存 project 早agg中，没有则保存在projectnode中，后面尝试下推
   ColRefArray grouping_cols;
   foreach_node(TargetEntry, target_entry, query_->targetList) {
-    auto project_elem = TranslateExprToProject(target_entry->expr, &root, target_entry->resname);
+    auto project_elem = TranslateExprToProject(target_entry->expr, root, target_entry->resname);
     auto *colref = project_elem->Cast<ItemProjectElement>().colref;
     col_ref_.emplace_back(colref);
 
@@ -97,9 +97,9 @@ OperatorNode *TranslatorQuery::TranslateSelect() {
   }
 
   if (query_->hasAggs)
-    root = new OperatorNode(std::make_shared<LogicalGbAgg>(grouping_cols, project_exprs), {root});
+    root = MakeOperatorNode(std::make_shared<LogicalGbAgg>(grouping_cols, project_exprs), {std::move(root)});
   else if (!project_exprs.empty())
-    root = new OperatorNode(std::make_shared<LogicalProject>(project_exprs), {root});
+    root = MakeOperatorNode(std::make_shared<LogicalProject>(project_exprs), {std::move(root)});
 
   std::shared_ptr<OrderSpec> pos = nullptr;
 
@@ -117,15 +117,15 @@ OperatorNode *TranslatorQuery::TranslateSelect() {
 
   // TODO: check if limit 0, retrurn empty result set at once
   if ((query_->limitCount != nullptr) || (query_->limitOffset != nullptr)) {
-    auto limit = TranslateExpr((Expr *)query_->limitCount, &root);
-    auto offset = TranslateExpr((Expr *)query_->limitOffset, &root);
-    root = new OperatorNode(std::make_shared<LogicalLimit>(pos, limit, offset), {root});
+    auto limit = TranslateExpr((Expr *)query_->limitCount, root);
+    auto offset = TranslateExpr((Expr *)query_->limitOffset, root);
+    root = MakeOperatorNode(std::make_shared<LogicalLimit>(pos, limit, offset), {std::move(root)});
   }
 
   return root;
 }
 
-OperatorNode *TranslatorQuery::TranslateNode(Node *node) {
+OperatorNodePtr TranslatorQuery::TranslateNode(Node *node) {
   switch (nodeTag(node)) {
     case T_FromExpr:
       return TranslateNode((FromExpr *)node);
@@ -142,8 +142,8 @@ OperatorNode *TranslatorQuery::TranslateNode(Node *node) {
   return nullptr;
 }
 
-OperatorNode *TranslatorQuery::TranslateNode(FromExpr *from_expr) {
-  OperatorNode *root = nullptr;
+OperatorNodePtr TranslatorQuery::TranslateNode(FromExpr *from_expr) {
+  OperatorNodePtr root = nullptr;
 
   if (0 == list_length(from_expr->fromlist))
     throw OptException("TODO: empty fromlist");
@@ -151,32 +151,32 @@ OperatorNode *TranslatorQuery::TranslateNode(FromExpr *from_expr) {
   if (1 == list_length(from_expr->fromlist))
     root = TranslateNode(linitial_node(Node, from_expr->fromlist));
   else {
-    auto *outer = TranslateNode(linitial_node(Node, from_expr->fromlist));
-    auto *inner = TranslateNode(lsecond_node(Node, from_expr->fromlist));
-    root = new OperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, OperatorUtils::PexprScalarConstBool(true)),
+    auto outer = TranslateNode(linitial_node(Node, from_expr->fromlist));
+    auto inner = TranslateNode(lsecond_node(Node, from_expr->fromlist));
+    root = MakeOperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, OperatorUtils::PexprScalarConstBool(true)),
                             {outer, inner});
 
     ListCell *arg;
     for_each_from(arg, from_expr->fromlist, 2) {
-      root = new OperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, OperatorUtils::PexprScalarConstBool(true)),
+      root = MakeOperatorNode(std::make_shared<LogicalJoin>(JOIN_INNER, OperatorUtils::PexprScalarConstBool(true)),
                               {root, TranslateNode(lfirst_node(Node, arg))});
     }
   }
 
-  auto condition_node = TranslateExpr((Expr *)from_expr->quals, &root);
+  auto condition_node = TranslateExpr((Expr *)from_expr->quals, root);
 
   if (1 >= list_length(from_expr->fromlist)) {
     if (nullptr != condition_node) {
-      root = new OperatorNode(std::make_shared<LogicalFilter>(condition_node), {root});
+      root = MakeOperatorNode(std::make_shared<LogicalFilter>(condition_node), {root});
     }
   } else {
     if (nullptr == condition_node)
       condition_node = OperatorUtils::PexprScalarConstBool(true);
 
-    auto *cnode = root;
+    auto cnode = root;
     while (cnode->content->kind == OperatorType::LogicalApply &&
-           (cnode->Cast<LogicalApply>().subquery_type == SubQueryType::ANY_SUBLINK ||
-            cnode->Cast<LogicalApply>().subquery_type == SubQueryType::ALL_SUBLINK)) {
+           (cnode->Cast<LogicalApply>().subquery_type == ANY_SUBLINK ||
+            cnode->Cast<LogicalApply>().subquery_type == ALL_SUBLINK)) {
       cnode = cnode->GetChild(0);
     }
     if (cnode->content->kind == OperatorType::LogicalApply) {
@@ -191,7 +191,7 @@ OperatorNode *TranslatorQuery::TranslateNode(FromExpr *from_expr) {
   return root;
 }
 
-OperatorNode *TranslatorQuery::TranslateNode(RangeTblRef *node) {
+OperatorNodePtr TranslatorQuery::TranslateNode(RangeTblRef *node) {
   auto rt_index = node->rtindex;
 
   auto *rte = rt_fetch(rt_index, query_->rtable);
@@ -225,7 +225,7 @@ OperatorNode *TranslatorQuery::TranslateNode(RangeTblRef *node) {
         colid2attno[colref->Id()] = att->attnum;
       }
 
-      return new OperatorNode(std::make_shared<LogicalGet>(rte, output_columns, colid2attno));
+      return MakeOperatorNode(std::make_shared<LogicalGet>(rte, output_columns, colid2attno));
     }
 
     case RTE_SUBQUERY: {
@@ -233,7 +233,7 @@ OperatorNode *TranslatorQuery::TranslateNode(RangeTblRef *node) {
 
       TranslatorQuery transformer(optimizer_context_, var_to_colid_map_, query_derived_tbl, query_level_ + 1);
 
-      OperatorNode *subquery = transformer.TranslateSelect();
+      OperatorNodePtr subquery = transformer.TranslateSelect();
 
       uint32_t counter = 0;
       auto outputs = transformer.GetQueryOutputCols();
@@ -256,10 +256,10 @@ OperatorNode *TranslatorQuery::TranslateNode(RangeTblRef *node) {
   return nullptr;
 }
 
-OperatorNode *TranslatorQuery::TranslateNode(JoinExpr *join_expr) {
-  OperatorNode *left_child = TranslateNode(join_expr->larg);
-  OperatorNode *right_child = TranslateNode(join_expr->rarg);
-  OperatorNode *root;
+OperatorNodePtr TranslatorQuery::TranslateNode(JoinExpr *join_expr) {
+  OperatorNodePtr left_child = TranslateNode(join_expr->larg);
+  OperatorNodePtr right_child = TranslateNode(join_expr->rarg);
+  OperatorNodePtr root;
 
   // TODO: subquery in join condition
   std::shared_ptr<LogicalJoin> join_node;
@@ -271,10 +271,10 @@ OperatorNode *TranslatorQuery::TranslateNode(JoinExpr *join_expr) {
     join_node = std::make_shared<LogicalJoin>(join_expr->jointype, nullptr);
     join_children = {left_child, right_child};
   }
-  root = new OperatorNode(join_node, join_children);
+  root = MakeOperatorNode(join_node, join_children);
 
   if (nullptr != join_expr->quals)
-    join_node->filter = TranslateExpr((Expr *)join_expr->quals, &root);
+    join_node->filter = TranslateExpr((Expr *)join_expr->quals, root);
   else
     join_node->filter = OperatorUtils::PexprScalarConstBool(true);
 
@@ -289,7 +289,7 @@ OperatorNode *TranslatorQuery::TranslateNode(JoinExpr *join_expr) {
   forboth(lc_node, rte->joinaliasvars, lc_col_name, rte->eref->colnames) {
     Node *join_alias_node = (Node *)lfirst(lc_node);
 
-    auto project_elem = TranslateExprToProject((Expr *)join_alias_node, &root, strVal(lfirst(lc_col_name)));
+    auto project_elem = TranslateExprToProject((Expr *)join_alias_node, root, strVal(lfirst(lc_col_name)));
     auto *proj_colref = project_elem->Cast<ItemProjectElement>().colref;
     var_to_colid_map_.Insert(query_level_, rtindex, ++i, proj_colref);
 
@@ -301,10 +301,10 @@ OperatorNode *TranslatorQuery::TranslateNode(JoinExpr *join_expr) {
     return root;
   }
 
-  return new OperatorNode(std::make_shared<LogicalProject>(project_exprs), {root});
+  return MakeOperatorNode(std::make_shared<LogicalProject>(project_exprs), {root});
 }
 
-ItemExprPtr TranslatorQuery::TranslateExprToProject(Expr *expr, OperatorNode **root, const char *alias_name) {
+ItemExprPtr TranslatorQuery::TranslateExprToProject(Expr *expr, OperatorNodePtr &root, const char *alias_name) {
   auto expr_node = TranslateExpr(expr, root);
 
   ColRef *colref;
@@ -324,7 +324,7 @@ ItemExprPtr TranslatorQuery::TranslateExprToProject(Expr *expr, OperatorNode **r
   return project;
 }
 
-ItemExprPtr TranslatorQuery::TranslateExpr(const Expr *expr, OperatorNode **root) {
+ItemExprPtr TranslatorQuery::TranslateExpr(const Expr *expr, OperatorNodePtr &root) {
   if (expr == nullptr)
     return nullptr;
 
@@ -552,11 +552,11 @@ ItemExprPtr TranslatorQuery::TranslateExpr(const Expr *expr, OperatorNode **root
   }
 }
 
-ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root, bool under_not) {
+ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNodePtr &root, bool under_not) {
   TranslatorQuery query_translator{optimizer_context_, var_to_colid_map_, (Query *)sublink->subselect,
                                    query_level_ + 1};
 
-  OperatorNode *subquery_node = query_translator.TranslateSelect();
+  OperatorNodePtr subquery_node = query_translator.TranslateSelect();
   auto output_array = query_translator.GetQueryOutputCols();
 
   // TODO: more subquery types
@@ -564,9 +564,9 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
     case EXPR_SUBLINK: {
       auto *colref = output_array[0];
 
-      auto apply = std::make_shared<LogicalApply>(output_array, SubQueryType::EXPR_SUBLINK,
-                                                  pgp::OperatorUtils::PexprScalarConstBool(true));
-      *root = new OperatorNode(apply, {*root, subquery_node});
+      auto apply =
+          std::make_shared<LogicalApply>(output_array, EXPR_SUBLINK, pgp::OperatorUtils::PexprScalarConstBool(true));
+      root = MakeOperatorNode(apply, {std::move(root), subquery_node});
 
       return std::make_shared<ItemIdent>(colref);
     }
@@ -583,23 +583,21 @@ ItemExprPtr TranslatorQuery::TranslateNode(SubLink *sublink, OperatorNode **root
       auto pexpr_predicate =
           OperatorUtils::PexprScalarCmp(TranslateExpr(lhs_expr, root), output_array[0], op_expr->opno);
 
-      auto apply = std::make_shared<LogicalApply>(
-          output_array, sublink->subLinkType == ALL_SUBLINK ? SubQueryType::ALL_SUBLINK : SubQueryType::ANY_SUBLINK,
-          pexpr_predicate);
+      auto apply = std::make_shared<LogicalApply>(output_array, sublink->subLinkType, pexpr_predicate);
 
       apply->is_not_subquery = under_not;
 
-      *root = new OperatorNode(apply, {*root, subquery_node});
+      root = MakeOperatorNode(apply, {std::move(root), subquery_node});
 
       return OperatorUtils::PexprScalarConstBool(true);
     }
 
     case EXISTS_SUBLINK: {
       ColRefArray colrefs = {output_array.front()};
-      auto apply = std::make_shared<LogicalApply>(colrefs, SubQueryType::EXISTS_SUBLINK,
-                                                  pgp::OperatorUtils::PexprScalarConstBool(true));
+      auto apply =
+          std::make_shared<LogicalApply>(colrefs, EXISTS_SUBLINK, pgp::OperatorUtils::PexprScalarConstBool(true));
       apply->is_not_subquery = under_not;
-      *root = new OperatorNode(apply, {*root, subquery_node});
+      root = MakeOperatorNode(apply, {std::move(root), subquery_node});
 
       return OperatorUtils::PexprScalarConstBool(true);
     }

@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "pg_operator/operator_node.h"
 #include "pg_optimizer/group.h"
 #include "pg_optimizer/memo.h"
 #include "pg_optimizer/pattern.h"
@@ -16,7 +17,7 @@ class BindingIterator {
 
   virtual bool HasNext() = 0;
 
-  virtual OperatorNode *Next() = 0;
+  virtual OperatorNodePtr Next() = 0;
 
  protected:
   const Memo &memo_;
@@ -38,7 +39,7 @@ class GroupBindingIterator : public BindingIterator {
 
   bool HasNext() override;
 
-  OperatorNode *Next() override;
+  OperatorNodePtr Next() override;
 
  private:
   Pattern *pattern_;
@@ -64,7 +65,7 @@ class GroupExprBindingIterator : public BindingIterator {
 
   bool HasNext() override;
 
-  OperatorNode *Next() override { return current_binding_; }
+  OperatorNodePtr Next() override { return current_binding_; }
 
  private:
   GroupExpression *gexpr_;
@@ -73,9 +74,9 @@ class GroupExprBindingIterator : public BindingIterator {
 
   bool has_next_;
 
-  OperatorNode *current_binding_;
+  OperatorNodePtr current_binding_;
 
-  std::vector<std::vector<OperatorNode *>> children_bindings_;
+  std::vector<OperatorNodeArray> children_bindings_;
 
   std::vector<size_t> children_bindings_pos_;
 };

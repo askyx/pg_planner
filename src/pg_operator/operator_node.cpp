@@ -13,7 +13,7 @@ std::string OperatorNode::ToString() const {
   return content->ToString();
 }
 
-OperatorProperties *OperatorNode::PdpDerive() {
+std::shared_ptr<OperatorProperties> OperatorNode::DeriveProp() {
   if (!operator_properties->IsComplete())
     operator_properties->Derive(this);
 
@@ -31,7 +31,7 @@ bool OperatorNode::operator==(const OperatorNode &other) const {
 hash_t OperatorNode::Hash() const {
   auto ul_hash = content->Hash();
 
-  for (auto *child : children)
+  for (const auto &child : children)
     ul_hash = HashUtil::CombineHashes(ul_hash, child->Hash());
 
   return ul_hash;

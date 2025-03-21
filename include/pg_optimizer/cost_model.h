@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/exception.h"
 #include "pg_optimizer/optimization_context.h"
 
 namespace pgp {

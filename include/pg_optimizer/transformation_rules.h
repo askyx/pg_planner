@@ -11,7 +11,7 @@ class InnerJoinCommutativityRule : public Rule {
 
   bool Check(GroupExpression *gexpr) const override;
 
-  void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
 };
 
 }  // namespace pgp

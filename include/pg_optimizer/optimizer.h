@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pg_operator/operator_node.h"
 #include "pg_optimizer/optimizer_context.h"
 #include "pg_optimizer/property.h"
 struct Query;
@@ -8,7 +9,7 @@ struct PlannedStmt;
 namespace pgp {
 
 struct QueryInfo {
-  pgp::OperatorNode *expr;
+  pgp::OperatorNodePtr expr;
   std::vector<std::string> output_col_names;
   pgp::ColRefArray output_array;
   std::shared_ptr<PropertySet> properties;

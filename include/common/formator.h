@@ -17,7 +17,7 @@ class Format {
   std::stringstream ss_;
   std::vector<std::string> prefix_;
 
-  std::string FormatOperatorTree(const Obj *obj, bool is_last = true) {
+  std::string FormatOperatorTree(const Obj &obj, bool is_last = true) {
     for (const auto &prefix : prefix_)
       ss_ << prefix;
 
@@ -33,10 +33,10 @@ class Format {
       }
     }
 
-    if constexpr (std::is_same_v<Obj, pgp::OperatorNode>) {
+    if constexpr (std::is_same_v<Obj, pgp::OperatorNodePtr>) {
       ss_ << obj->ToString() << '\n';
       auto child_size = obj->children.size();
-      for (auto [i, child] : std::views::enumerate(obj->children)) {
+      for (const auto &[i, child] : std::views::enumerate(obj->children)) {
         FormatOperatorTree(child, i == child_size - 1);
       }
     }
@@ -47,7 +47,7 @@ class Format {
     return ss_.str();
   }
 
-  std::string ToStringInternal(const Obj *obj) {
+  std::string ToStringInternal(const Obj &obj) {
     ss_.str("");
     return FormatOperatorTree(obj);
   }
@@ -56,7 +56,7 @@ class Format {
   Format() = default;
   DISALLOW_COPY_AND_MOVE(Format)
 
-  static std::string ToString(const Obj *obj) {
+  static std::string ToString(const Obj &obj) {
     Format formator;
     return formator.ToStringInternal(obj);
   }

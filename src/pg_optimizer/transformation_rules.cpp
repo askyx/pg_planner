@@ -25,11 +25,11 @@ bool InnerJoinCommutativityRule::Check(GroupExpression *gexpr) const {
   return join_op.join_type == JOIN_INNER;
 }
 
-void InnerJoinCommutativityRule::Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const {
-  OperatorNode *pexpr_left = pexpr->GetChild(0);
-  OperatorNode *pexpr_right = pexpr->GetChild(1);
+void InnerJoinCommutativityRule::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+  auto pexpr_left = pexpr->GetChild(0);
+  auto pexpr_right = pexpr->GetChild(1);
 
-  auto *pexpr_alt = new OperatorNode(pexpr->content, {pexpr_right, pexpr_left});
+  auto pexpr_alt = MakeOperatorNode(pexpr->content, {pexpr_right, pexpr_left});
 
   // add alternative to transformation result
   pxfres.emplace_back(pexpr_alt);

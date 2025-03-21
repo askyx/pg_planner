@@ -34,13 +34,13 @@ ItemExprPtr OperatorUtils::PexprScalarConstBool(bool value, bool is_null) {
 }
 
 // if predicate is True return logical expression, otherwise return a new select node
-OperatorNode *OperatorUtils::PexprSafeSelect(OperatorNode *pexpr_logical, const ItemExprPtr &pexpr_pred) {
+OperatorNodePtr OperatorUtils::PexprSafeSelect(OperatorNodePtr pexpr_logical, const ItemExprPtr &pexpr_pred) {
   if (FScalarConstTrue(pexpr_pred)) {
     // caller must have add-refed the predicate before coming here
     return pexpr_logical;
   }
 
-  return new OperatorNode(std::make_shared<LogicalFilter>(pexpr_pred), {pexpr_logical});
+  return MakeOperatorNode(std::make_shared<LogicalFilter>(pexpr_pred), {pexpr_logical});
 }
 
 // check if the expression is a scalar boolean const

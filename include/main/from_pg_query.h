@@ -85,21 +85,21 @@ class TranslatorQuery {
         query_level_(query_level),
         optimizer_context_(ctx) {}
 
-  OperatorNode *TranslateQuery();
+  OperatorNodePtr TranslateQuery();
 
-  OperatorNode *TranslateSelect();
+  OperatorNodePtr TranslateSelect();
 
-  OperatorNode *TranslateNode(Node *node);
+  OperatorNodePtr TranslateNode(Node *node);
 
-  OperatorNode *TranslateNode(FromExpr *from_expr);
-  OperatorNode *TranslateNode(RangeTblRef *node);
-  OperatorNode *TranslateNode(JoinExpr *join_expr);
+  OperatorNodePtr TranslateNode(FromExpr *from_expr);
+  OperatorNodePtr TranslateNode(RangeTblRef *node);
+  OperatorNodePtr TranslateNode(JoinExpr *join_expr);
 
-  ItemExprPtr TranslateNode(SubLink *sublink, OperatorNode **root, bool under_not);
+  ItemExprPtr TranslateNode(SubLink *sublink, OperatorNodePtr &root, bool under_not);
 
-  ItemExprPtr TranslateExprToProject(Expr *expr, OperatorNode **root, const char *alias_name);
+  ItemExprPtr TranslateExprToProject(Expr *expr, OperatorNodePtr &root, const char *alias_name);
 
-  ItemExprPtr TranslateExpr(const Expr *expr, OperatorNode **root);
+  ItemExprPtr TranslateExpr(const Expr *expr, OperatorNodePtr &root);
 
   ColRefArray GetQueryOutputCols() const { return col_ref_; }
 

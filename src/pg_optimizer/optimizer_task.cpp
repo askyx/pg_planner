@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "pg_operator/operator_node.h"
 #include "pg_optimizer/binding.h"
 #include "pg_optimizer/child_property_deriver.h"
 #include "pg_optimizer/cost_model.h"
@@ -151,13 +152,13 @@ void ApplyRule::Execute() {
 
   GroupExprBindingIterator iterator(GetMemo(), group_expr_, rule_->GetMatchPattern());
   while (iterator.HasNext()) {
-    auto *before = iterator.Next();
+    auto before = iterator.Next();
     if (!rule_->Check(group_expr_)) {
       continue;
     }
 
     // Caller frees after
-    std::vector<OperatorNode *> after;
+    OperatorNodeArray after;
     rule_->Transform(after, before);
     for (const auto &new_expr : after) {
       auto *group = group_expr_->GetGroup();

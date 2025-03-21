@@ -1,11 +1,10 @@
 #pragma once
 
+#include "pg_operator/operator_node.h"
 namespace pgp {
-
-class OperatorNode;
 
 class Normalizer {
  public:
-  static OperatorNode *NormalizerTree(OperatorNode *pexpr);
+  static OperatorNodePtr NormalizerTree(OperatorNodePtr pexpr);
 };
 }  // namespace pgp

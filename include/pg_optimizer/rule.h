@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "common/macros.h"
+#include "pg_operator/operator_node.h"
 #include "pg_optimizer/pattern.h"
 
 extern "C" {
@@ -72,7 +73,7 @@ class Rule {
   bool FImplementation() const { return rule_type_ > RuleType::EXP_IMP_DETERMI; }
 
   // actual transformation
-  virtual void Transform(std::vector<OperatorNode *> &pxfres, OperatorNode *pexpr) const = 0;
+  virtual void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const = 0;
 
   virtual RulePromise Promise(GroupExpression *group_expr) const;
 
@@ -80,7 +81,7 @@ class Rule {
 
   virtual Pattern *GetMatchPattern() const { return match_pattern_; }
 
-  virtual bool Check(OperatorNode *pexpr, OptimizationContext *context) const { return true; }
+  virtual bool Check(const OperatorNodePtr &pexpr, OptimizationContext *context) const { return true; }
 
  protected:
   Pattern *match_pattern_;

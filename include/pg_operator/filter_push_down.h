@@ -6,6 +6,6 @@ namespace pgp {
 
 class FilterPushDown {
  public:
-  static OperatorNode *Process(OperatorNode *pexpr);
+  static OperatorNodePtr Process(OperatorNodePtr pexpr);
 };
 }  // namespace pgp

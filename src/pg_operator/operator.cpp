@@ -75,13 +75,13 @@ std::string Operator::ToString() const {
     case OperatorType::LogicalApply: {
       const auto &id = Cast<LogicalApply>();
       switch (id.subquery_type) {
-        case SubQueryType::ALL_SUBLINK:
+        case ALL_SUBLINK:
           return std::format("LogicalApply: ALL_SUBLINK");
-        case SubQueryType::ANY_SUBLINK:
+        case ANY_SUBLINK:
           return std::format("LogicalApply: ANY_SUBLINK");
-        case SubQueryType::EXISTS_SUBLINK:
+        case EXISTS_SUBLINK:
           return std::format("LogicalApply: EXISTS_SUBLINK");
-        case SubQueryType::EXPR_SUBLINK:
+        case EXPR_SUBLINK:
           return std::format("LogicalApply: EXPR_SUBLINK");
         default:
           return std::format("LogicalApply:");
@@ -147,13 +147,13 @@ std::string Operator::ToString() const {
     case OperatorType::PhysicalApply: {
       const auto &id = Cast<PhysicalApply>();
       switch (id.subquery_type) {
-        case SubQueryType::ALL_SUBLINK:
+        case ALL_SUBLINK:
           return std::format("PhysicalApply: ALL_SUBLINK");
-        case SubQueryType::ANY_SUBLINK:
+        case ANY_SUBLINK:
           return std::format("PhysicalApply: ANY_SUBLINK");
-        case SubQueryType::EXISTS_SUBLINK:
+        case EXISTS_SUBLINK:
           return std::format("PhysicalApply: EXISTS_SUBLINK");
-        case SubQueryType::EXPR_SUBLINK:
+        case EXPR_SUBLINK:
           return std::format("PhysicalApply: EXPR_SUBLINK");
         default:
           return std::format("PhysicalApply:");

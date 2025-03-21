@@ -9,9 +9,9 @@ namespace pgp {
 
 OptimizerContext *OptimizerContext::optimizer_context = nullptr;
 
-GroupExpression *OptimizerContext::MakeGroupExpression(OperatorNode *node) {
+GroupExpression *OptimizerContext::MakeGroupExpression(const OperatorNodePtr &node) {
   std::vector<Group *> child_groups;
-  for (auto *child : node->children) {
+  for (const auto &child : node->children) {
     if (child->content->kind == OperatorType::LEAF) {
       // Special case for LEAF
       auto &leaf = child->Cast<LeafOperator>();

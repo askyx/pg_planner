@@ -38,7 +38,7 @@ Datum transform_query(PG_FUNCTION_ARGS) {  // NOLINT
       pgp::Optimizer optimizer{query};
 
       auto op_tree = optimizer.QueryToOperator();
-      auto tree = pgp::Format<pgp::OperatorNode>::ToString(op_tree.expr);
+      auto tree = pgp::Format<pgp::OperatorNodePtr>::ToString(op_tree.expr);
       if (transformed_query_tree == nullptr)
         transformed_query_tree = psprintf("%s", pstrdup(tree.c_str()));
       else

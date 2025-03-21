@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "pg_operator/operator.h"
+#include "pg_operator/operator_node.h"
 
 namespace pgp {
 
@@ -38,10 +39,10 @@ bool GroupBindingIterator::HasNext() {
   return current_iterator_ != nullptr;
 }
 
-OperatorNode *GroupBindingIterator::Next() {
+OperatorNodePtr GroupBindingIterator::Next() {
   if (catch_multiple_leaf_ || pattern_->Type() == OperatorType::LEAF) {
     current_item_index_ = num_group_items_;
-    auto *result = new OperatorNode(std::make_shared<LeafOperator>(target_group_));
+    auto result = MakeOperatorNode(std::make_shared<LeafOperator>(target_group_));
     result->operator_properties = target_group_->GroupProperties();
 
     return result;
@@ -72,12 +73,11 @@ GroupExprBindingIterator::GroupExprBindingIterator(const Memo &memo, GroupExpres
   children_bindings_pos_.resize(child_groups.size(), 0);
 
   // Get first level children
-
   OperatorNodeArray children;
 
   for (size_t i = 0; i < child_groups.size(); ++i) {
     // Try to find a match in the given group
-    std::vector<OperatorNode *> &child_bindings = children_bindings_[i];
+    auto &child_bindings = children_bindings_[i];
     GroupBindingIterator iterator(memo_, child_groups[i], pattern->IsMultiLeaf() ? nullptr : child_patterns[i]);
 
     // Get all bindings
@@ -95,7 +95,7 @@ GroupExprBindingIterator::GroupExprBindingIterator(const Memo &memo, GroupExpres
   }
 
   has_next_ = true;
-  current_binding_ = new OperatorNode(gexpr->Pop(), children);
+  current_binding_ = MakeOperatorNode(gexpr->Pop(), children);
 }
 
 bool GroupExprBindingIterator::HasNext() {
@@ -108,7 +108,7 @@ bool GroupExprBindingIterator::HasNext() {
     // The first child to be modified
     int first_modified_idx = static_cast<int>(children_bindings_pos_.size()) - 1;
     for (; first_modified_idx >= 0; --first_modified_idx) {
-      const std::vector<OperatorNode *> &child_binding = children_bindings_[first_modified_idx];
+      const auto &child_binding = children_bindings_[first_modified_idx];
 
       // Try to increment idx from the back
       size_t new_pos = ++children_bindings_pos_[first_modified_idx];
@@ -125,11 +125,11 @@ bool GroupExprBindingIterator::HasNext() {
     } else {
       OperatorNodeArray children;
       for (size_t idx = 0; idx < children_bindings_pos_.size(); ++idx) {
-        const std::vector<OperatorNode *> &child_binding = children_bindings_[idx];
+        const auto &child_binding = children_bindings_[idx];
         children.emplace_back(child_binding[children_bindings_pos_[idx]]);
       }
 
-      current_binding_ = new OperatorNode(gexpr_->Pop(), children);
+      current_binding_ = MakeOperatorNode(gexpr_->Pop(), children);
     }
   }
 

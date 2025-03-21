@@ -18,7 +18,8 @@ class OperatorNode;
 
 class Operator;
 
-using OperatorNodeArray = std::vector<OperatorNode *>;
+using OperatorNodePtr = std::shared_ptr<OperatorNode>;
+using OperatorNodeArray = std::vector<OperatorNodePtr>;
 
 class OperatorNode {
  public:
@@ -26,7 +27,7 @@ class OperatorNode {
 
   OperatorNodeArray children;
 
-  OperatorProperties *operator_properties{new OperatorProperties()};
+  std::shared_ptr<OperatorProperties> operator_properties{std::make_shared<OperatorProperties>()};
 
   DISALLOW_COPY(OperatorNode)
 
@@ -37,16 +38,16 @@ class OperatorNode {
 
   size_t ChildrenSize() const { return children.size(); }
 
-  OperatorNode *GetChild(uint32_t ul_pos) const {
+  OperatorNodePtr GetChild(uint32_t ul_pos) const {
     PGP_ASSERT(ul_pos < children.size(), "index out of range");
     return children[ul_pos];
   }
 
-  void AddChild(OperatorNode *pexpr) { children.emplace_back(pexpr); }
+  void AddChild(const OperatorNodePtr &pexpr) { children.emplace_back(pexpr); }
 
   std::string ToString() const;
 
-  OperatorProperties *PdpDerive();
+  std::shared_ptr<OperatorProperties> DeriveProp();
 
   bool operator==(const OperatorNode &other) const;
 
@@ -82,6 +83,14 @@ inline bool operator==(const OperatorNodeArray &op1, const OperatorNodeArray &op
   }
 
   return true;
+}
+
+inline OperatorNodePtr MakeOperatorNode(std::shared_ptr<Operator> op) {
+  return std::make_shared<OperatorNode>(op);
+}
+
+inline OperatorNodePtr MakeOperatorNode(std::shared_ptr<Operator> op, const OperatorNodeArray &children) {
+  return std::make_shared<OperatorNode>(op, children);
 }
 
 }  // namespace pgp

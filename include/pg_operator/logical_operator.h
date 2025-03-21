@@ -20,8 +20,6 @@ extern "C" {
 
 namespace pgp {
 
-class OperatorNode;
-
 class LogicalOperator : public Operator {
  public:
   constexpr static OperatorType TYPE = OperatorType::Invalid;
@@ -97,13 +95,13 @@ class LogicalApply : public LogicalOperator {
 
   ColRefArray expr_refs;
 
-  SubQueryType subquery_type;
+  SubLinkType subquery_type;
 
   bool is_not_subquery{false};
 
   ItemExprPtr filter;
 
-  LogicalApply(ColRefArray expr_refs, SubQueryType subquery_type, ItemExprPtr filter)
+  LogicalApply(ColRefArray expr_refs, SubLinkType subquery_type, ItemExprPtr filter)
       : LogicalOperator(OperatorType::LogicalApply),
         expr_refs(std::move(expr_refs)),
         subquery_type(subquery_type),

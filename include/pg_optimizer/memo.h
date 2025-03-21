@@ -25,13 +25,14 @@ class Memo {
 
   std::string ToString() const;
 
-  GroupExpression *InsertExpression(OperatorNode *node, GroupExpression *gexpr, Group *target_group, bool enforced);
+  GroupExpression *InsertExpression(const OperatorNodePtr &node, GroupExpression *gexpr, Group *target_group,
+                                    bool enforced);
 
-  GroupExpression *InsertExpression(OperatorNode *node, GroupExpression *gexpr, bool enforced) {
+  GroupExpression *InsertExpression(const OperatorNodePtr &node, GroupExpression *gexpr, bool enforced) {
     return InsertExpression(node, gexpr, nullptr, enforced);
   }
 
-  Group *AddNewGroup(OperatorNode *node, GroupExpression *gexpr);
+  Group *AddNewGroup(const OperatorNodePtr &node, GroupExpression *gexpr);
 };
 
 }  // namespace pgp

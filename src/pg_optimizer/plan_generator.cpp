@@ -190,7 +190,7 @@ PlanMeta &PlanMeta::GenerateSeqScan(int plan_node_id) {
   return *this;
 }
 
-PlanMeta &PlanMeta::GenerateSubplan(SubLinkType slinktype, const PhysicalApply &apply) {
+PlanMeta &PlanMeta::GenerateSubplan(const PhysicalApply &apply) {
   generator.generator_context.subplan_entries_list =
       lappend(generator.generator_context.subplan_entries_list, children_metas[1].plan);
 
@@ -200,7 +200,7 @@ PlanMeta &PlanMeta::GenerateSubplan(SubLinkType slinktype, const PhysicalApply &
   subplan->firstColType = exprType((Node *)((TargetEntry *)list_nth(children_metas[1].plan->targetlist, 0))->expr);
   subplan->firstColCollation = get_typcollation(subplan->firstColType);
   subplan->firstColTypmod = -1;
-  subplan->subLinkType = slinktype;
+  subplan->subLinkType = apply.subquery_type;
   subplan->unknownEqFalse = false;
 
   auto upper_res_cols_copy = std::move(generator.upper_res_cols);
@@ -635,16 +635,14 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       PlanMeta apply_meta{.generator = *this, .children_metas = children_metas};
 
-      if (apply_node.subquery_type == SubQueryType::EXPR_SUBLINK) {
+      if (apply_node.subquery_type == EXPR_SUBLINK) {
         apply_meta.GenerateResult(generator_context.GetNextPlanId())
-            .GenerateSubplan(EXPR_SUBLINK, apply_node)
+            .GenerateSubplan(apply_node)
             .GenerateTargetList(req_cols)
             .GenerateFilter(apply_node.filter);
-      } else if (apply_node.subquery_type == SubQueryType::ANY_SUBLINK ||
-                 apply_node.subquery_type == SubQueryType::ALL_SUBLINK) {
+      } else if (apply_node.subquery_type == ANY_SUBLINK || apply_node.subquery_type == ALL_SUBLINK) {
         apply_meta.GenerateResult(generator_context.GetNextPlanId())
-            .GenerateSubplan(apply_node.subquery_type == SubQueryType::ANY_SUBLINK ? ANY_SUBLINK : ALL_SUBLINK,
-                             apply_node)
+            .GenerateSubplan(apply_node)
             .GenerateTargetList(req_cols);
         auto *plan = apply_meta.plan;
         const auto &pop_sc_cmp = apply_node.filter->Cast<ItemOpExpr>();
@@ -677,9 +675,9 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
             plan->qual = lappend(plan->qual, subplan);
         }
 
-      } else if (apply_node.subquery_type == SubQueryType::EXISTS_SUBLINK) {
+      } else if (apply_node.subquery_type == EXISTS_SUBLINK) {
         apply_meta.GenerateResult(generator_context.GetNextPlanId())
-            .GenerateSubplan(EXISTS_SUBLINK, apply_node)
+            .GenerateSubplan(apply_node)
             .GenerateTargetList(req_cols);
 
         auto *plan = apply_meta.plan;
