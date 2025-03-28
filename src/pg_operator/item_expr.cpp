@@ -123,7 +123,7 @@ std::string ItemExpr::ToString() const {
 
     case pgp::ExpressionKind::Ident: {
       const auto *ident = Cast<ItemIdent>().colref;
-      return ident->CrefName();
+      return ident->name;
     }
     case pgp::ExpressionKind::CaseExpr:
       return "Switch";
@@ -136,7 +136,7 @@ std::string ItemExpr::ToString() const {
 
       if (!args.empty())
         args.pop_back();
-      return std::format("Pj({} {})", project_element.colref->CrefName(), args);
+      return std::format("Pj({} {})", project_element.colref->name, args);
     }
 
     default:
@@ -270,7 +270,7 @@ BoolExpr *ItemBoolExpr::ToBoolExpr() const {
 
 hash_t ItemProjectElement::Hash() const {
   auto hash = ItemExpr::Hash();
-  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(colref->Id()));
+  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(colref->ref_id));
   return hash;
 }
 
@@ -278,7 +278,7 @@ bool ItemProjectElement::operator==(const ItemExpr &other) const {
   if (ItemExpr::operator==(other)) {
     const auto &project_element = Cast<ItemProjectElement>();
 
-    return colref->Id() == project_element.colref->Id();
+    return colref->ref_id == project_element.colref->ref_id;
   }
 
   return false;
@@ -407,7 +407,7 @@ bool ItemCoerceBase::operator==(const ItemExpr &other) const {
 
 hash_t ItemIdent::Hash() const {
   auto hash = ItemExpr::Hash();
-  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(colref->Id()));
+  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(colref->ref_id));
   return hash;
 }
 
@@ -415,7 +415,7 @@ bool ItemIdent::operator==(const ItemExpr &other) const {
   if (ItemExpr::operator==(other)) {
     const auto &ident = Cast<ItemIdent>();
 
-    return colref->Id() == ident.colref->Id();
+    return colref->ref_id == ident.colref->ref_id;
   }
 
   return false;

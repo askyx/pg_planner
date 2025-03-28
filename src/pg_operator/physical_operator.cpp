@@ -118,7 +118,7 @@ bool PhysicalComputeScalar::operator==(const Operator &other) const {
 hash_t PhysicalAgg::Hash() const {
   auto hash = Operator::Hash();
   for (auto *colref : group_columns)
-    hash = HashUtil::CombineHashes(hash, HashUtil::Hash(colref->Id()));
+    hash = HashUtil::CombineHashes(hash, HashUtil::Hash(colref->ref_id));
 
   for (const auto &project : project_exprs)
     hash = HashUtil::CombineHashes(hash, project->Hash());
@@ -138,7 +138,7 @@ PhysicalStreamAgg::PhysicalStreamAgg(ColRefArray colref_array, ExprArray project
     : PhysicalAgg(OperatorType::PhysicalStreamAgg, std::move(colref_array), std::move(project_exprs)) {
   order_spec = std::make_shared<OrderSpec>();
   for (auto *colref : group_columns) {
-    auto *type_entry = lookup_type_cache(colref->RetrieveType(), TYPECACHE_LT_OPR);
+    auto *type_entry = lookup_type_cache(colref->type, TYPECACHE_LT_OPR);
 
     order_spec->AddSortElement({type_entry->lt_opr, colref, NullsOrder::EnullsLast});
   }
@@ -166,7 +166,7 @@ std::shared_ptr<OrderSpec> PhysicalStreamAgg::PosCovering(const std::shared_ptr<
     // augment order with remaining grouping columns
     for (auto *colref : pdrgpcr_grp) {
       if (!pcrs_reqd.contains(colref)) {
-        auto *type_entry = lookup_type_cache(colref->RetrieveType(), TYPECACHE_LT_OPR);
+        auto *type_entry = lookup_type_cache(colref->type, TYPECACHE_LT_OPR);
         auto mdid = type_entry->lt_opr;
 
         pos->AddSortElement({mdid, colref, NullsOrder::EnullsLast});

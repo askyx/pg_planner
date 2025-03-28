@@ -74,15 +74,10 @@ class LogicalGet : public LogicalOperator {
 
   ColRefArray output_columns;
 
-  std::unordered_map<uint32_t, int> colid2attno;
-
   ItemExprPtr filter{nullptr};
 
-  LogicalGet(RangeTblEntry *table_desc, ColRefArray output_columns, std::unordered_map<uint32_t, int> colid2attno)
-      : LogicalOperator(OperatorType::LogicalGet),
-        table_desc(table_desc),
-        output_columns(std::move(output_columns)),
-        colid2attno(std::move(colid2attno)) {}
+  LogicalGet(RangeTblEntry *table_desc, ColRefArray output_columns)
+      : LogicalOperator(OperatorType::LogicalGet), table_desc(table_desc), output_columns(std::move(output_columns)) {}
 
   hash_t Hash() const override;
 

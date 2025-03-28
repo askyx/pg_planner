@@ -20,12 +20,8 @@ class ColRefPool {
 
   ~ColRefPool();
 
-  ColRef *PcrCreate(Oid type, int32_t mod);
-
   ColRef *PcrCreate(Oid type, int32_t mod, const std::string &name);
 
   ColRef *PcrCreate(Oid type, int32_t mod, bool mark_as_used, bool nullable, const std::string &name, uint32_t width);
-
-  ColRef *PcrCreate(const ColRef *colref) { return PcrCreate(colref->RetrieveType(), colref->TypeModifier()); }
 };
 }  // namespace pgp

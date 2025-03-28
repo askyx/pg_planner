@@ -5,7 +5,7 @@
 #include "pg_optimizer/optimizer.h"
 
 extern "C" {
-#include "nodes/nodes.h"
+#include <nodes/nodes.h>
 }
 static planner_hook_type prev_planner_hook = nullptr;
 static ExplainOneQuery_hook_type prev_explain_hook = nullptr;

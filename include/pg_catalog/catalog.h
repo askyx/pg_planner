@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "common/macros.h"
 
 extern "C" {
@@ -36,5 +38,7 @@ class Catalog {
   static bool TypeByVal(Oid type_oid);
 
   static Oid GetAggTranstype(Oid aggfnoid);
+
+  static std::vector<Oid> RelationGetIndexList(Oid rel_oid);
 };
 }  // namespace pgp

@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "pg_catalog/catalog.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/logical_operator.h"
 #include "pg_operator/operator.h"
@@ -14,7 +15,7 @@
 #include "pg_optimizer/rule.h"
 
 extern "C" {
-#include "nodes/nodes.h"
+#include <nodes/nodes.h>
 }
 
 namespace pgp {
@@ -24,11 +25,30 @@ Get2TableScan::Get2TableScan() {
   rule_type_ = ExfGet2TableScan;
 }
 
-void Get2TableScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
-  const auto &pop_get = pexpr->Cast<LogicalGet>();
+void Get2TableScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                              OptimizationContext *context) const {
+  const auto &get = pexpr->Cast<LogicalGet>();
 
-  pxfres.emplace_back(new OperatorNode(
-      std::make_shared<PhysicalScan>(pop_get.table_desc, pop_get.output_columns, pop_get.colid2attno, pop_get.filter)));
+  pxfres.emplace_back(new OperatorNode(std::make_shared<PhysicalScan>(get.table_desc, get.output_columns, get.filter)));
+}
+
+Get2IndexScan::Get2IndexScan() {
+  match_pattern_ = new Pattern(OperatorType::LogicalGet);
+  rule_type_ = ExfGet2IndexScan;
+}
+
+bool Get2IndexScan::Check(GroupExpression *gexpr) const {
+  const auto &get = gexpr->Pop()->Cast<LogicalGet>();
+  return !Catalog::RelationGetIndexList(get.table_desc->relid).empty();
+}
+
+void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                              OptimizationContext *context) const {
+  const auto &get = pexpr->Cast<LogicalGet>();
+  (void)get;
+  // 1. if no condition, check required sort property
+
+  // 2. if has condition, check if it can be pushed down to index
 }
 
 ImplementLimit::ImplementLimit() {
@@ -38,7 +58,8 @@ ImplementLimit::ImplementLimit() {
   rule_type_ = ExfImplementLimit;
 }
 
-void ImplementLimit::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void ImplementLimit::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                               OptimizationContext *context) const {
   const auto &pop_limit = pexpr->Cast<LogicalLimit>();
 
   auto *pexpr_limit = new OperatorNode(
@@ -53,7 +74,8 @@ Select2Filter::Select2Filter() {
   rule_type_ = ExfSelect2Filter;
 }
 
-void Select2Filter::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void Select2Filter::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                              OptimizationContext *context) const {
   const auto &pexpr_select = pexpr->Cast<LogicalFilter>();
 
   auto *pexpr_filter = new OperatorNode(std::make_shared<PhysicalFilter>(pexpr_select.filter), pexpr->children);
@@ -67,7 +89,8 @@ Project2ComputeScalarRule::Project2ComputeScalarRule() {
   rule_type_ = ExfProject2ComputeScalar;
 }
 
-void Project2ComputeScalarRule::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void Project2ComputeScalarRule::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                                          OptimizationContext *context) const {
   const auto &project = pexpr->Cast<LogicalProject>();
   auto *pexpr_compute_scalar =
       new OperatorNode(std::make_shared<PhysicalComputeScalar>(project.project_exprs), pexpr->children);
@@ -115,7 +138,8 @@ bool ImplementInnerJoin::Check(GroupExpression *gexpr) const {
   return logical_join.join_type == JOIN_INNER;
 }
 
-void ImplementInnerJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void ImplementInnerJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                                   OptimizationContext *context) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
   ImplementHashJoin(pxfres, pexpr, JOIN_INNER);
 
@@ -135,7 +159,8 @@ bool GbAgg2HashAgg::Check(GroupExpression *gexpr) const {
   return !pop_agg.group_columns.empty();
 }
 
-void GbAgg2HashAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void GbAgg2HashAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                              OptimizationContext *context) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
   if (pop_agg.project_exprs.empty())
     return;
@@ -156,7 +181,8 @@ bool GbAgg2ScalarAgg::Check(GroupExpression *gexpr) const {
   return 0 >= gexpr->Pop()->Cast<LogicalGbAgg>().group_columns.size();
 }
 
-void GbAgg2ScalarAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void GbAgg2ScalarAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                                OptimizationContext *context) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
 
   auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalScalarAgg>(pop_agg.group_columns, pop_agg.project_exprs),
@@ -176,7 +202,8 @@ bool GbAgg2StreamAgg::Check(GroupExpression *gexpr) const {
   return 0 != pop_agg.group_columns.size();
 }
 
-void GbAgg2StreamAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void GbAgg2StreamAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                                OptimizationContext *context) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
 
   auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalStreamAgg>(pop_agg.group_columns, pop_agg.project_exprs),
@@ -202,7 +229,8 @@ bool Join2NestedLoopJoin::Check(GroupExpression *gexpr) const {
   return true;
 }
 
-void Join2NestedLoopJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void Join2NestedLoopJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                                    OptimizationContext *context) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
 
   auto *pexpr_binary =
@@ -218,7 +246,8 @@ Join2HashJoin::Join2HashJoin() {
   rule_type_ = ExfJoin2HashJoin;
 }
 
-void Join2HashJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void Join2HashJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                              OptimizationContext *context) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
 
   ExprArray pdrgpexpr_outer;
@@ -256,7 +285,8 @@ ImplementApply::ImplementApply() {
   rule_type_ = ExfImplementApply;
 }
 
-void ImplementApply::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void ImplementApply::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                               OptimizationContext *context) const {
   const auto &pop_apply = pexpr->Cast<LogicalApply>();
 
   auto *pexpr_physical_apply =

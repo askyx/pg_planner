@@ -25,7 +25,8 @@ bool InnerJoinCommutativityRule::Check(GroupExpression *gexpr) const {
   return join_op.join_type == JOIN_INNER;
 }
 
-void InnerJoinCommutativityRule::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const {
+void InnerJoinCommutativityRule::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                                           OptimizationContext *context) const {
   auto pexpr_left = pexpr->GetChild(0);
   auto pexpr_right = pexpr->GetChild(1);
 

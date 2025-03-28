@@ -2,9 +2,9 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
-#include "common/defer.h"
-#include "common/exception.h"
+#include "nodes/pg_list.h"
 
 extern "C" {
 #include <access/htup_details.h>
@@ -16,6 +16,8 @@ extern "C" {
 #include <utils/lsyscache.h>
 #include <utils/rel.h>
 #include <utils/syscache.h>
+
+#include "access/table.h"
 }
 
 namespace pgp {
@@ -95,6 +97,18 @@ Oid Catalog::GetAggTranstype(Oid aggfnoid) {
   result = ((Form_pg_aggregate)GETSTRUCT(tp))->aggtranstype;
   ReleaseSysCache(tp);
   return result;
+}
+
+std::vector<Oid> Catalog::RelationGetIndexList(Oid rel_oid) {
+  auto *relation = table_open(rel_oid, NoLock);
+  auto *indexlist = ::RelationGetIndexList(relation);
+  std::vector<Oid> index_oids;
+  foreach_oid(index, indexlist) index_oids.emplace_back(index);
+
+  table_close(relation, NoLock);
+  list_free(indexlist);
+
+  return index_oids;
 }
 
 }  // namespace pgp

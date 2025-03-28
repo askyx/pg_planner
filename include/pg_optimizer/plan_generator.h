@@ -37,10 +37,9 @@ struct PlanMeta {
     bool init{false};
     Oid rel_oid;
     Index rte_index;
-    std::unordered_map<uint32_t, int> colid_to_attno_map;
   } range_table_context;
 
-  PlanMeta &InitRangeTableContext(RangeTblEntry *rte, std::unordered_map<uint32_t, int> colid2attno);
+  PlanMeta &InitRangeTableContext(RangeTblEntry *rte);
 
   PlanMeta &SetPlanStats(GroupExpression *gexpr);
 

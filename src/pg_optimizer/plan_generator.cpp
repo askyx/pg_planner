@@ -43,8 +43,8 @@ PlanMeta &PlanMeta::SetAggGroupInfo(const PhysicalAgg &agg_node) {
 
     auto child_target_map = children_metas[0].colid_target_map;
     for (auto [i, group] : std::views::enumerate(grouping_cols)) {
-      PGP_ASSERT(child_target_map.contains(group->Id()), "target entry not found for column reference");
-      auto *target_entry = child_target_map[group->Id()];
+      PGP_ASSERT(child_target_map.contains(group->ref_id), "target entry not found for column reference");
+      auto *target_entry = child_target_map[group->ref_id];
       agg->grpColIdx[i] = target_entry->resno;
 
       // Also find the equality operators to use for each grouping col.
@@ -74,8 +74,8 @@ PlanMeta &PlanMeta::SetSortInfo(const PhysicalSort &sort_node) {
 
   auto child_target_map = children_metas[0].colid_target_map;
   for (auto [idx, sort_ele] : std::views::enumerate(sortspec->GetSortArray())) {
-    PGP_ASSERT(child_target_map.contains(sort_ele.colref->Id()), "target entry not found for column reference");
-    const auto *target = child_target_map[sort_ele.colref->Id()];
+    PGP_ASSERT(child_target_map.contains(sort_ele.colref->ref_id), "target entry not found for column reference");
+    const auto *target = child_target_map[sort_ele.colref->ref_id];
     sort->sortColIdx[idx] = target->resno;
     sort->sortOperators[idx] = sort_ele.sort_op;
     sort->collations[idx] = exprCollation((Node *)target->expr);
@@ -92,18 +92,18 @@ PlanMeta &PlanMeta::GenerateTargetList(const ExprArray &project_list, const ColR
     auto *colref = project_node->Cast<ItemProjectElement>().colref;
     auto *expr = GenerateExpr(project_node->GetChild(0));
 
-    target_map[colref->Id()] = GenerateTargetEntry(expr, 0, colref->CrefName(), colref->Id());
+    target_map[colref->ref_id] = GenerateTargetEntry(expr, 0, colref->name, colref->ref_id);
   }
 
   AttrNumber resno = 1;
   for (auto *colref : req_cols) {
-    if (target_map.contains(colref->Id())) {
-      auto *target_entry = target_map[colref->Id()];
+    if (target_map.contains(colref->ref_id)) {
+      auto *target_entry = target_map[colref->ref_id];
       target_entry->resno = resno++;
       target_list = lappend(target_list, target_entry);
     } else {
       auto *var = GenerateVarExpr(colref);
-      auto *target_entry = GenerateTargetEntry(var, resno++, pstrdup(colref->CrefName().c_str()), colref->Id());
+      auto *target_entry = GenerateTargetEntry(var, resno++, pstrdup(colref->name.c_str()), colref->ref_id);
       target_list = lappend(target_list, target_entry);
     }
   }
@@ -117,7 +117,7 @@ PlanMeta &PlanMeta::GenerateTargetList(const ColRefArray &req_cols) {
   AttrNumber resno = 1;
   for (auto *colref : req_cols) {
     auto *var = GenerateVarExpr(colref);
-    auto *target_entry = GenerateTargetEntry(var, resno++, pstrdup(colref->CrefName().c_str()), colref->Id());
+    auto *target_entry = GenerateTargetEntry(var, resno++, pstrdup(colref->name.c_str()), colref->ref_id);
     target_list = lappend(target_list, target_entry);
   }
   plan->targetlist = target_list;
@@ -206,14 +206,14 @@ PlanMeta &PlanMeta::GenerateSubplan(const PhysicalApply &apply) {
   auto upper_res_cols_copy = std::move(generator.upper_res_cols);
   // TODO: array subplan
   for (auto *colref : upper_res_cols_copy) {
-    PGP_ASSERT(generator.param_id_map.contains(colref->Id()), "parameter id not found for column reference");
-    subplan->parParam = lappend_int(subplan->parParam, generator.param_id_map.at(colref->Id()));
+    PGP_ASSERT(generator.param_id_map.contains(colref->ref_id), "parameter id not found for column reference");
+    subplan->parParam = lappend_int(subplan->parParam, generator.param_id_map.at(colref->ref_id));
     subplan->args = lappend(subplan->args, GenerateVarExpr(colref));
   }
 
   // what if array subplan or multi-column subplan?
   for (auto *colref : apply.expr_refs)
-    generator.colid_subplan_map[colref->Id()] = (Expr *)subplan;
+    generator.colid_subplan_map[colref->ref_id] = (Expr *)subplan;
 
   generator.param_id_map.clear();
 
@@ -275,8 +275,8 @@ Expr *PlanMeta::GenerateExpr(const ItemExprPtr &op_node) {
   switch (op_node->kind) {
     case pgp::ExpressionKind::Ident: {
       auto *colref = op_node->Cast<ItemIdent>().colref;
-      if (generator.colid_subplan_map.contains(colref->Id()))
-        return generator.colid_subplan_map.at(colref->Id());
+      if (generator.colid_subplan_map.contains(colref->ref_id))
+        return generator.colid_subplan_map.at(colref->ref_id);
 
       return GenerateVarExpr(colref);
     }
@@ -480,25 +480,25 @@ Expr *PlanMeta::GenerateVarExpr(ColRef *colref) {
   if (generator.upper_res_cols.contains(colref)) {
     auto *param = makeNode(Param);
     param->paramkind = PARAM_EXEC;
-    param->paramtype = colref->RetrieveType();
+    param->paramtype = colref->type;
     param->paramid = generator.generator_context.GetNextParamId(param->paramtype);
-    param->paramtypmod = colref->TypeModifier();
+    param->paramtypmod = colref->modifier;
     param->paramcollid = get_typcollation(param->paramtype);
 
-    generator.param_id_map.insert({colref->Id(), param->paramid});
+    generator.param_id_map.insert({colref->ref_id, param->paramid});
 
     return (Expr *)param;
   }
 
-  if (generator.colid_subplan_map.contains(colref->Id()))
-    return generator.colid_subplan_map.at(colref->Id());
+  if (generator.colid_subplan_map.contains(colref->ref_id))
+    return generator.colid_subplan_map.at(colref->ref_id);
 
   Index varno = 0, varnosyn = 0;
   AttrNumber attno = 0, varattnosyn = 0;
 
   if (range_table_context.init) {
     varno = range_table_context.rte_index;
-    attno = (AttrNumber)range_table_context.colid_to_attno_map.at(colref->Id());
+    attno = colref->attnum;
 
     varnosyn = varno;
     varattnosyn = attno;
@@ -507,15 +507,15 @@ Expr *PlanMeta::GenerateVarExpr(ColRef *colref) {
     PGP_ASSERT(children_metas.size() <= 2, "Only support two children for now");
     const auto &left_child = children_metas[0];
     TargetEntry *target_entry = nullptr;
-    if (left_child.colid_target_map.contains(colref->Id())) {
+    if (left_child.colid_target_map.contains(colref->ref_id)) {
       varno = OUTER_VAR;
-      target_entry = left_child.colid_target_map.at(colref->Id());
+      target_entry = left_child.colid_target_map.at(colref->ref_id);
       attno = target_entry->resno;
     } else if (children_metas.size() == 2) {
       const auto &right_child = children_metas[1];
-      if (right_child.colid_target_map.contains(colref->Id())) {
+      if (right_child.colid_target_map.contains(colref->ref_id)) {
         varno = INNER_VAR;
-        target_entry = right_child.colid_target_map.at(colref->Id());
+        target_entry = right_child.colid_target_map.at(colref->ref_id);
         attno = target_entry->resno;
       } else
         throw std::runtime_error("Column not found in children");
@@ -530,7 +530,7 @@ Expr *PlanMeta::GenerateVarExpr(ColRef *colref) {
     }
   }
 
-  auto *var = makeVar((int)varno, attno, colref->RetrieveType(), colref->TypeModifier(), 100, 0);
+  auto *var = makeVar((int)varno, attno, colref->type, colref->modifier, 100, 0);
 
   var->varnosyn = varnosyn;
   var->varattnosyn = varattnosyn;
@@ -538,11 +538,10 @@ Expr *PlanMeta::GenerateVarExpr(ColRef *colref) {
   return (Expr *)var;
 }
 
-PlanMeta &PlanMeta::InitRangeTableContext(RangeTblEntry *rte, std::unordered_map<uint32_t, int> colid2attno) {
+PlanMeta &PlanMeta::InitRangeTableContext(RangeTblEntry *rte) {
   range_table_context.init = true;
   range_table_context.rte_index = generator.generator_context.GetRTEIndexByAssignedQueryId();
   range_table_context.rel_oid = rte->relid;
-  range_table_context.colid_to_attno_map = std::move(colid2attno);
   generator.generator_context.AddRTE(rte);
 
   return *this;
@@ -576,7 +575,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       PlanMeta scan_meta{.generator = *this, .children_metas = children_metas};
 
-      scan_meta.InitRangeTableContext(scan_node.table_desc, scan_node.colid2attno)
+      scan_meta.InitRangeTableContext(scan_node.table_desc)
           .GenerateSeqScan(generator_context.GetNextPlanId())
           .GenerateTargetList(req_cols)
           .GenerateFilter(scan_node.filter)
@@ -653,16 +652,16 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
         auto *param = makeNode(Param);
         param->paramkind = PARAM_EXEC;
-        param->paramtype = paramref->RetrieveType();
+        param->paramtype = paramref->type;
         param->paramid = generator_context.GetNextParamId(param->paramtype);
-        param->paramtypmod = paramref->TypeModifier();
+        param->paramtypmod = paramref->modifier;
         param->paramcollid = get_typcollation(param->paramtype);
 
         op_expr->args = lappend(op_expr->args, apply_meta.GenerateExpr(pop_sc_cmp.GetChild(0)));
         op_expr->args = lappend(op_expr->args, param);
 
         for (auto *colref : apply_node.expr_refs) {
-          auto *subplan = (SubPlan *)colid_subplan_map.at(colref->Id());
+          auto *subplan = (SubPlan *)colid_subplan_map.at(colref->ref_id);
           subplan->paramIds = lappend_int(subplan->paramIds, param->paramid);
           subplan->testexpr = (Node *)op_expr;
 
@@ -682,7 +681,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
         auto *plan = apply_meta.plan;
         for (auto *colref : apply_node.expr_refs) {
-          auto *subplan = colid_subplan_map.at(colref->Id());
+          auto *subplan = colid_subplan_map.at(colref->ref_id);
           if (apply_node.is_not_subquery) {
             BoolExpr *scalar_bool_expr = makeNode(BoolExpr);
             scalar_bool_expr->boolop = NOT_EXPR;

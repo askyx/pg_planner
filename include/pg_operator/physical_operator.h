@@ -45,16 +45,12 @@ class PhysicalScan : public PhysicalOperator {
 
   ColRefArray output_columns;
 
-  std::unordered_map<uint32_t, int> colid2attno;
-
   ItemExprPtr filter;
 
-  PhysicalScan(RangeTblEntry *table_desc, ColRefArray output_columns, std::unordered_map<uint32_t, int> colid2attno,
-               ItemExprPtr filter)
+  PhysicalScan(RangeTblEntry *table_desc, ColRefArray output_columns, ItemExprPtr filter)
       : PhysicalOperator(OperatorType::PhysicalScan),
         table_desc(table_desc),
         output_columns(std::move(output_columns)),
-        colid2attno(std::move(colid2attno)),
         filter(std::move(filter)) {}
 
   hash_t Hash() const override;

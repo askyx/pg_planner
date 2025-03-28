@@ -10,56 +10,34 @@
 
 #include "common/hash_util.h"
 
+extern "C" {
+#include <access/attnum.h>
+}
 namespace pgp {
 
-class ColRef {
- private:
-  Oid type_;
+struct ColRef {
+  uint32_t ref_id;
 
-  int32_t modifier_;
+  Oid type;
+  int32_t modifier;
+  std::string name;
+  bool nullable;
+  uint32_t width;
 
-  std::string name_;
+  // for basetable
+  AttrNumber attnum;
 
-  // unique identifier for the columnref
-  uint32_t id_;
+  std::string ToString() const { return std::format("{}#{}", name, ref_id); }
 
-  bool nullable_{false};
-
-  uint32_t width_{0};
-
- public:
-  bool IsNullable() const { return nullable_; }
-
-  uint32_t Width() const { return width_; }
-
-  ColRef(const Oid pmdtype, int32_t type_modifier, uint32_t id, std::string pname, bool is_nullable = false,
-         uint32_t width = 0)
-      : type_(pmdtype),
-        modifier_(type_modifier),
-        name_(std::move(pname)),
-        id_(id),
-        nullable_(is_nullable),
-        width_(width) {}
-
-  Oid RetrieveType() const { return type_; }
-
-  int32_t TypeModifier() const { return modifier_; }
-
-  const std::string &CrefName() const { return name_; }
-
-  uint32_t Id() const { return id_; }
-
-  std::string ToString() const { return std::format("{}#{}", name_, id_); }
-
-  bool operator==(const ColRef &cr) const { return id_ == cr.Id(); }
+  bool operator==(const ColRef &cr) const { return ref_id == cr.ref_id; }
 };
 
 struct ColRefHash {
-  size_t operator()(const ColRef *cr) const { return HashUtil::Hash(cr->Id()); }
+  size_t operator()(const ColRef *cr) const { return HashUtil::Hash(cr->ref_id); }
 };
 
 struct ColRefEqual {
-  bool operator()(const ColRef *cr1, const ColRef *cr2) const { return cr1->Id() == cr2->Id(); }
+  bool operator()(const ColRef *cr1, const ColRef *cr2) const { return cr1->ref_id == cr2->ref_id; }
 };
 
 using ColRefArray = std::vector<ColRef *>;
@@ -201,7 +179,7 @@ template <ColRefConcept CON>
 inline hash_t ColRefContainerHash(const CON &cr) {
   hash_t hash = 0;
   for (auto *col_ref : cr) {
-    hash = HashUtil::CombineHashes(hash, HashUtil::Hash(col_ref->Id()));
+    hash = HashUtil::CombineHashes(hash, HashUtil::Hash(col_ref->ref_id));
   }
   return hash;
 }
@@ -211,7 +189,7 @@ inline bool operator==(const ColRefArray &cr1, const ColRefArray &cr2) {
     return false;
   }
   for (auto [c1, c2] : std::views::zip(cr1, cr2))
-    if (c1->Id() != c2->Id())
+    if (c1->ref_id != c2->ref_id)
       return false;
 
   return true;

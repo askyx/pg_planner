@@ -383,7 +383,7 @@ ColRefSet PropertiesDriver::DeriveNotNullColumns(OperatorNode *expr) {
 
       // filters out nullable columns
       for (auto *colref : xx) {
-        if (colref->IsNullable()) {
+        if (colref->nullable) {
           pcrs.erase(colref);
         }
       }

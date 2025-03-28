@@ -210,8 +210,6 @@ OperatorNodePtr TranslatorQuery::TranslateNode(RangeTblRef *node) {
 
       ColRefArray output_columns;
 
-      std::unordered_map<uint32_t, int> colid2attno;
-
       for (int i = 0; i < RelationGetNumberOfAttributes(rel); i++) {
         Form_pg_attribute att = TupleDescAttr(rel->rd_att, i);
         auto item_width = get_attavgwidth(RelationGetRelid(rel), (AttrNumber)i);
@@ -222,10 +220,10 @@ OperatorNodePtr TranslatorQuery::TranslateNode(RangeTblRef *node) {
                                                                           NameStr(att->attname), item_width);
         output_columns.emplace_back(colref);
         var_to_colid_map_.Insert(query_level_, rt_index, att->attnum, colref);
-        colid2attno[colref->Id()] = att->attnum;
+        colref->attnum = att->attnum;
       }
 
-      return MakeOperatorNode(std::make_shared<LogicalGet>(rte, output_columns, colid2attno));
+      return MakeOperatorNode(std::make_shared<LogicalGet>(rte, output_columns));
     }
 
     case RTE_SUBQUERY: {

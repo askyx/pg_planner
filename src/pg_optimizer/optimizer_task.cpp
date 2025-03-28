@@ -159,7 +159,7 @@ void ApplyRule::Execute() {
 
     // Caller frees after
     OperatorNodeArray after;
-    rule_->Transform(after, before);
+    rule_->Transform(after, before, context_);
     for (const auto &new_expr : after) {
       auto *group = group_expr_->GetGroup();
       GroupExpression *new_gexpr = nullptr;

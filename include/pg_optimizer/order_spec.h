@@ -27,7 +27,7 @@ class OrderSpec {
     }
     uint32_t Hash() const {
       auto hash = HashUtil::Hash(sort_op);
-      hash = HashUtil::CombineHashes(hash, colref->Id());
+      hash = HashUtil::CombineHashes(hash, colref->ref_id);
       hash = HashUtil::CombineHashes(hash, static_cast<uint32_t>(nulls_order));
       return hash;
     }

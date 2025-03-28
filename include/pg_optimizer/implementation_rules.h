@@ -9,28 +9,37 @@ class Get2TableScan : public Rule {
  public:
   Get2TableScan();
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
+};
+
+class Get2IndexScan : public Rule {
+ public:
+  Get2IndexScan();
+
+  bool Check(GroupExpression *gexpr) const override;
+
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class ImplementLimit : public Rule {
  public:
   ImplementLimit();
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class Select2Filter : public Rule {
  public:
   Select2Filter();
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class Project2ComputeScalarRule : public Rule {
  public:
   Project2ComputeScalarRule();
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class ImplementInnerJoin : public Rule {
@@ -39,7 +48,7 @@ class ImplementInnerJoin : public Rule {
 
   bool Check(GroupExpression *gexpr) const override;
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 // HashAggregate
@@ -49,7 +58,7 @@ class GbAgg2HashAgg : public Rule {
 
   bool Check(GroupExpression *gexpr) const override;
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 // Plain Aggregate
@@ -59,7 +68,7 @@ class GbAgg2ScalarAgg : public Rule {
 
   bool Check(GroupExpression *gexpr) const override;
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 // Sorted Aggregate
@@ -69,14 +78,14 @@ class GbAgg2StreamAgg : public Rule {
 
   bool Check(GroupExpression *gexpr) const override;
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class ImplementApply : public Rule {
  public:
   ImplementApply();
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class Join2NestedLoopJoin : public Rule {
@@ -85,14 +94,14 @@ class Join2NestedLoopJoin : public Rule {
 
   bool Check(GroupExpression *gexpr) const override;
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 class Join2HashJoin : public Rule {
  public:
   Join2HashJoin();
 
-  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const override;
+  void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
 };
 
 }  // namespace pgp

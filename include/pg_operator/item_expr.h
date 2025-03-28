@@ -318,7 +318,7 @@ struct ItemIdent : public ItemExpr {
 
   bool operator==(const ItemExpr &other) const override;
 
-  Oid ExprReturnType() const override { return colref->RetrieveType(); }
+  Oid ExprReturnType() const override { return colref->type; }
 };
 
 struct ItemCaseExpr : public ItemExpr {
@@ -390,7 +390,7 @@ struct ItemProjectElement : public ItemExpr {
 
   bool operator==(const ItemExpr &other) const override;
 
-  Oid ExprReturnType() const override { return colref->RetrieveType(); }
+  Oid ExprReturnType() const override { return colref->type; }
 };
 
 struct ItemSortGroupClause : public ItemExpr {

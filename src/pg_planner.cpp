@@ -76,7 +76,6 @@ Datum planner_test(PG_FUNCTION_ARGS) {
 }
 
 void _PG_init(void) {
-  (void)std::pmr::new_delete_resource();
   pgp::DefinePlannerGuc();
   pgp::DefinePlannerHooks();
 }

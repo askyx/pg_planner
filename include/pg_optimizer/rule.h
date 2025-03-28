@@ -49,6 +49,7 @@ enum RuleType : uint8_t {
   ExfJoin2HashJoin,
 
   ExfGet2TableScan,
+  ExfGet2IndexScan,
   ExfImplementLimit,
   ExfSelect2Filter,
   ExfProject2ComputeScalar,
@@ -73,7 +74,8 @@ class Rule {
   bool FImplementation() const { return rule_type_ > RuleType::EXP_IMP_DETERMI; }
 
   // actual transformation
-  virtual void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr) const = 0;
+  virtual void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
+                         OptimizationContext *context) const = 0;
 
   virtual RulePromise Promise(GroupExpression *group_expr) const;
 
