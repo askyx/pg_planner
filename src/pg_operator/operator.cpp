@@ -141,6 +141,9 @@ std::string Operator::ToString() const {
     case OperatorType::PhysicalScan:
       return "PhysicalScan";
 
+    case pgp::OperatorType::PhysicalIndexScan:
+      return "PhysicalIndexScan";
+
     case OperatorType::PhysicalFullMergeJoin:
       return "PhysicalFullMergeJoin";
 

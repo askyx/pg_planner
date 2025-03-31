@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "common/hash_util.h"
+#include "pg_catalog/relation_info.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/operator.h"
 #include "pg_operator/operator_node.h"
@@ -72,12 +73,12 @@ class LogicalGet : public LogicalOperator {
 
   RangeTblEntry *table_desc;
 
-  ColRefArray output_columns;
+  RelationInfoPtr relation_info;
 
   ItemExprPtr filter{nullptr};
 
-  LogicalGet(RangeTblEntry *table_desc, ColRefArray output_columns)
-      : LogicalOperator(OperatorType::LogicalGet), table_desc(table_desc), output_columns(std::move(output_columns)) {}
+  LogicalGet(RangeTblEntry *table_desc, RelationInfoPtr relation_info)
+      : LogicalOperator(OperatorType::LogicalGet), table_desc(table_desc), relation_info(std::move(relation_info)) {}
 
   hash_t Hash() const override;
 

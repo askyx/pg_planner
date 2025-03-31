@@ -30,6 +30,13 @@ ChildPropertyDeriver::GetProperties(Memo *memo, const std::shared_ptr<PropertySe
     case OperatorType::PhysicalScan:
       return {{std::make_shared<PropertySet>(), std::vector<std::shared_ptr<PropertySet>>{}}};
 
+    case pgp::OperatorType::PhysicalIndexScan: {
+      const auto &index_scan = op->Cast<PhysicalIndexScan>();
+      auto property_set = std::make_shared<PropertySet>();
+      property_set->AddProperty(std::make_shared<PropertySort>(index_scan.order_spec->Copy()));
+      return {{property_set, {}}};
+    }
+
     // limit 提供 order 属性
     case OperatorType::PhysicalLimit: {
       const auto &limit = op->Cast<PhysicalLimit>();

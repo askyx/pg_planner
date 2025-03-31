@@ -176,28 +176,28 @@ class OptimizerTaskStack {
 
   OptimizerTask* Pop() {
     // ownership handed off to caller
-    auto* task = task_stack_.top();
-    task_stack_.pop();
+    auto* task = task_stack.top();
+    task_stack.pop();
     return task;
   }
 
   ~OptimizerTaskStack() {
-    while (!task_stack_.empty()) {
-      auto* task = task_stack_.top();
-      task_stack_.pop();
+    while (!task_stack.empty()) {
+      auto* task = task_stack.top();
+      task_stack.pop();
       delete task;
     }
   }
 
   void Push(OptimizerTask* task) {
     // ownership trasnferred to stack
-    task_stack_.push(task);
+    task_stack.push(task);
   }
 
-  bool Empty() { return task_stack_.empty(); }
+  bool Empty() { return task_stack.empty(); }
 
  private:
-  std::stack<OptimizerTask*> task_stack_;
+  std::stack<OptimizerTask*> task_stack;
 };
 
 }  // namespace pgp

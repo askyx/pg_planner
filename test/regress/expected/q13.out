@@ -36,8 +36,8 @@ select transform_query(query) from tpch_queries(13);
 
 set pg_planner.enable_planner to on;
 explain verbose :query
-                                         QUERY PLAN                                         
---------------------------------------------------------------------------------------------
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
    Output: (count(orders.o_orderkey)), count()
    Group Key: count(orders.o_orderkey)
@@ -47,16 +47,13 @@ explain verbose :query
          ->  Nested Loop Left Join  (cost=0.00..100.00 rows=1000 width=8)
                Output: orders.o_orderkey, customer.c_custkey
                Join Filter: (customer.c_custkey = orders.o_custkey)
-               ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+               ->  Index Scan using idx_customer_nationkey on public.customer  (cost=0.00..100.00 rows=1000 width=8)
                      Output: customer.c_custkey
-                     Sort Key: customer.c_custkey COLLATE "default"
-                     ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
-                           Output: customer.c_custkey
                ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
                      Output: orders.o_custkey, orders.o_orderkey
                      Filter: ((orders.o_comment)::text !~~ '%special%requests%'::text)
  Optimizer: PGP
-(18 rows)
+(15 rows)
 
 :query
  c_count | custdist 

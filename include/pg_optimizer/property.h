@@ -61,7 +61,7 @@ class PropertySet {
 
   void AddProperty(const std::shared_ptr<Property> &property);
 
-  const std::shared_ptr<Property> GetPropertyOfType(PropertyType type) const;
+  std::shared_ptr<Property> GetPropertyOfType(PropertyType type) const;
 
   template <typename T>
   const T &GetPropertyOfTypeAs(PropertyType type) const {

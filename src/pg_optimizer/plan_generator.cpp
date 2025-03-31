@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "common/exception.h"
+#include "nodes/plannodes.h"
 #include "pg_catalog/catalog.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/operator.h"
@@ -79,7 +80,7 @@ PlanMeta &PlanMeta::SetSortInfo(const PhysicalSort &sort_node) {
     sort->sortColIdx[idx] = target->resno;
     sort->sortOperators[idx] = sort_ele.sort_op;
     sort->collations[idx] = exprCollation((Node *)target->expr);
-    sort->nullsFirst[idx] = (bool)sort_ele.nulls_order;
+    sort->nullsFirst[idx] = sort_ele.nulls_first;
   }
 
   return *this;
@@ -138,7 +139,7 @@ PlanMeta &PlanMeta::GenerateFilter(const ItemExprPtr &filter_node, bool join_fil
 }
 
 PlanMeta &PlanMeta::GenerateResult(int plan_node_id) {
-  Result *node = makeNode(Result);
+  auto *node = makeNode(Result);
   plan = &node->plan;
   plan->plan_node_id = plan_node_id;
   plan->lefttree = children_metas[0].plan;
@@ -147,7 +148,7 @@ PlanMeta &PlanMeta::GenerateResult(int plan_node_id) {
 }
 
 PlanMeta &PlanMeta::GenerateNestedLoopJoin(int plan_node_id, const PhysicalNLJoin &nljoin_node) {
-  NestLoop *nested_loop = makeNode(NestLoop);
+  auto *nested_loop = makeNode(NestLoop);
   Join *join = &(nested_loop->join);
   plan = &(join->plan);
   plan->plan_node_id = plan_node_id;
@@ -161,7 +162,7 @@ PlanMeta &PlanMeta::GenerateNestedLoopJoin(int plan_node_id, const PhysicalNLJoi
 }
 
 PlanMeta &PlanMeta::GenerateLimit(int plan_node_id) {
-  Limit *limit = makeNode(Limit);
+  auto *limit = makeNode(Limit);
 
   plan = &(limit->plan);
   plan->plan_node_id = plan_node_id;
@@ -171,7 +172,7 @@ PlanMeta &PlanMeta::GenerateLimit(int plan_node_id) {
 }
 
 PlanMeta &PlanMeta::GenerateSort(int plan_node_id) {
-  Sort *sort = makeNode(Sort);
+  auto *sort = makeNode(Sort);
 
   plan = &(sort->plan);
   plan->plan_node_id = plan_node_id;
@@ -181,10 +182,20 @@ PlanMeta &PlanMeta::GenerateSort(int plan_node_id) {
 }
 
 PlanMeta &PlanMeta::GenerateSeqScan(int plan_node_id) {
-  SeqScan *seq_scan = makeNode(SeqScan);
+  auto *seq_scan = makeNode(SeqScan);
 
   seq_scan->scan.scanrelid = range_table_context.rte_index;
   plan = &(seq_scan->scan.plan);
+  plan->plan_node_id = plan_node_id;
+
+  return *this;
+}
+
+PlanMeta &PlanMeta::GenerateIndexScan(int plan_node_id) {
+  auto *index_scan = makeNode(IndexScan);
+
+  index_scan->scan.scanrelid = range_table_context.rte_index;
+  plan = &(index_scan->scan.plan);
   plan->plan_node_id = plan_node_id;
 
   return *this;
@@ -581,6 +592,22 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
           .GenerateFilter(scan_node.filter)
           .SetPlanStats(gexpr);
       return scan_meta;
+    }
+
+    case pgp::OperatorType::PhysicalIndexScan: {
+      const auto &index_scan_node = gexpr->Pop()->Cast<PhysicalIndexScan>();
+
+      PlanMeta index_scan_meta{.generator = *this, .children_metas = children_metas};
+
+      index_scan_meta.InitRangeTableContext(index_scan_node.table_desc)
+          .GenerateIndexScan(generator_context.GetNextPlanId())
+          .GenerateTargetList(req_cols)
+          .SetPlanStats(gexpr);
+
+      auto *index_scan = (IndexScan *)index_scan_meta.plan;
+      index_scan->indexid = index_scan_node.index_id;
+
+      return index_scan_meta;
     }
 
     case OperatorType::PhysicalStreamAgg:

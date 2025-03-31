@@ -24,15 +24,16 @@ hash_t PhysicalSort::Hash() const {
 
 bool PhysicalSort::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &sort_node = Cast<PhysicalSort>();
+    const auto &sort_node = other.Cast<PhysicalSort>();
     return *order_spec == *sort_node.order_spec;
   }
   return false;
 }
 
 hash_t PhysicalScan::Hash() const {
-  auto hash = HashUtil::CombineHashes(Operator::Hash(), HashUtil::Hash(table_desc));
-  hash = HashUtil::CombineHashes(hash, ColRefContainerHash(output_columns));
+  auto hash = Operator::Hash();
+  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(table_desc->relid));
+  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(table_desc->eref->aliasname));
   if (filter != nullptr)
     hash = HashUtil::CombineHashes(hash, filter->Hash());
 
@@ -41,9 +42,26 @@ hash_t PhysicalScan::Hash() const {
 
 bool PhysicalScan::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &scan_node = Cast<PhysicalScan>();
-    return table_desc->relid == scan_node.table_desc->relid && output_columns == scan_node.output_columns &&
-           ((filter == nullptr && scan_node.filter == nullptr) || (filter != nullptr && *filter == *scan_node.filter));
+    const auto &get_node = other.Cast<PhysicalScan>();
+
+    if (filter && *filter == *get_node.filter)
+      return get_node.table_desc->relid == table_desc->relid &&
+             std::strcmp(table_desc->eref->aliasname, get_node.table_desc->eref->aliasname) == 0;
+  }
+  return false;
+}
+
+hash_t PhysicalIndexScan::Hash() const {
+  auto hash = PhysicalScan::Hash();
+  hash = HashUtil::CombineHashes(hash, HashUtil::Hash(index_id));
+  return hash;
+}
+
+bool PhysicalIndexScan::operator==(const Operator &other) const {
+  if (PhysicalScan::operator==(other)) {
+    const auto &index_node = other.Cast<PhysicalIndexScan>();
+
+    return index_id == index_node.index_id;
   }
   return false;
 }
@@ -60,7 +78,7 @@ hash_t PhysicalLimit::Hash() const {
 
 bool PhysicalLimit::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &limit_node = Cast<PhysicalLimit>();
+    const auto &limit_node = other.Cast<PhysicalLimit>();
 
     return limit_node.order_spec == order_spec && *limit == *(limit_node.limit) && *offset == *(limit_node.offset);
   }
@@ -77,7 +95,7 @@ hash_t PhysicalApply::Hash() const {
 
 bool PhysicalApply::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &apply_node = Cast<PhysicalApply>();
+    const auto &apply_node = other.Cast<PhysicalApply>();
     return subquery_type == apply_node.subquery_type && expr_refs == apply_node.expr_refs;
   }
 
@@ -92,7 +110,7 @@ hash_t PhysicalFilter::Hash() const {
 
 bool PhysicalFilter::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &filter_node = Cast<PhysicalFilter>();
+    const auto &filter_node = other.Cast<PhysicalFilter>();
     return *filter == *filter_node.filter;
   }
 
@@ -108,7 +126,7 @@ hash_t PhysicalComputeScalar::Hash() const {
 
 bool PhysicalComputeScalar::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &compute_scalar_node = Cast<PhysicalComputeScalar>();
+    const auto &compute_scalar_node = other.Cast<PhysicalComputeScalar>();
     return project_exprs == compute_scalar_node.project_exprs;
   }
 
@@ -127,7 +145,7 @@ hash_t PhysicalAgg::Hash() const {
 
 bool PhysicalAgg::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &agg_node = Cast<PhysicalAgg>();
+    const auto &agg_node = other.Cast<PhysicalAgg>();
     return group_columns == agg_node.group_columns && project_exprs == agg_node.project_exprs;
   }
 
@@ -140,7 +158,7 @@ PhysicalStreamAgg::PhysicalStreamAgg(ColRefArray colref_array, ExprArray project
   for (auto *colref : group_columns) {
     auto *type_entry = lookup_type_cache(colref->type, TYPECACHE_LT_OPR);
 
-    order_spec->AddSortElement({type_entry->lt_opr, colref, NullsOrder::EnullsLast});
+    order_spec->AddSortElement({type_entry->lt_opr, colref, false});
   }
 }
 
@@ -169,7 +187,7 @@ std::shared_ptr<OrderSpec> PhysicalStreamAgg::PosCovering(const std::shared_ptr<
         auto *type_entry = lookup_type_cache(colref->type, TYPECACHE_LT_OPR);
         auto mdid = type_entry->lt_opr;
 
-        pos->AddSortElement({mdid, colref, NullsOrder::EnullsLast});
+        pos->AddSortElement({mdid, colref, false});
       }
     }
   }
@@ -185,7 +203,7 @@ hash_t PhysicalStreamAgg::Hash() const {
 
 bool PhysicalStreamAgg::operator==(const Operator &other) const {
   if (PhysicalAgg::operator==(other)) {
-    const auto &stream_agg_node = Cast<PhysicalStreamAgg>();
+    const auto &stream_agg_node = other.Cast<PhysicalStreamAgg>();
     return *order_spec == *stream_agg_node.order_spec;
   }
 
@@ -271,7 +289,7 @@ hash_t PhysicalJoin::Hash() const {
 
 bool PhysicalJoin::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
-    const auto &join_node = Cast<PhysicalJoin>();
+    const auto &join_node = other.Cast<PhysicalJoin>();
     return join_type == join_node.join_type && *filter == *join_node.filter;
   }
 
@@ -290,7 +308,7 @@ hash_t PhysicalFullMergeJoin::Hash() const {
 
 bool PhysicalFullMergeJoin::operator==(const Operator &other) const {
   if (PhysicalJoin::operator==(other)) {
-    const auto &full_merge_join_node = Cast<PhysicalFullMergeJoin>();
+    const auto &full_merge_join_node = other.Cast<PhysicalFullMergeJoin>();
     return outer_merge_clauses == full_merge_join_node.outer_merge_clauses &&
            inner_merge_clauses == full_merge_join_node.inner_merge_clauses;
   }

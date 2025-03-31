@@ -53,6 +53,8 @@ struct PlanMeta {
 
   PlanMeta &GenerateSeqScan(int plan_node_id);
 
+  PlanMeta &GenerateIndexScan(int plan_node_id);
+
   PlanMeta &GenerateSort(int plan_node_id);
 
   PlanMeta &GenerateLimit(int plan_node_id);

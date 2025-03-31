@@ -81,13 +81,10 @@ explain verbose :query
                  ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
                        Output: lineitem_1.l_orderkey
                        Group Key: lineitem_1.l_orderkey
-                       ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+                       ->  Index Scan using idx_lineitem_shipdate on public.lineitem lineitem_1  (cost=0.00..100.00 rows=1000 width=8)
                              Output: lineitem_1.l_orderkey
-                             Sort Key: lineitem_1.l_orderkey COLLATE "default"
-                             ->  Seq Scan on public.lineitem lineitem_1  (cost=0.00..100.00 rows=1000 width=8)
-                                   Output: lineitem_1.l_orderkey
  Optimizer: PGP
-(30 rows)
+(27 rows)
 
 :query
  c_name | c_custkey | o_orderkey | o_orderdate | o_totalprice | sum 

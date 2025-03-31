@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "pg_catalog/catalog.h"
+#include "pg_catalog/relation_info.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/logical_operator.h"
 #include "pg_operator/operator.h"
@@ -11,7 +11,10 @@
 #include "pg_operator/physical_operator.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/group_expression.h"
+#include "pg_optimizer/optimization_context.h"
 #include "pg_optimizer/pattern.h"
+#include "pg_optimizer/properties.h"
+#include "pg_optimizer/property.h"
 #include "pg_optimizer/rule.h"
 
 extern "C" {
@@ -29,7 +32,7 @@ void Get2TableScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
                               OptimizationContext *context) const {
   const auto &get = pexpr->Cast<LogicalGet>();
 
-  pxfres.emplace_back(new OperatorNode(std::make_shared<PhysicalScan>(get.table_desc, get.output_columns, get.filter)));
+  pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalScan>(get.table_desc, get.relation_info, get.filter)));
 }
 
 Get2IndexScan::Get2IndexScan() {
@@ -39,14 +42,36 @@ Get2IndexScan::Get2IndexScan() {
 
 bool Get2IndexScan::Check(GroupExpression *gexpr) const {
   const auto &get = gexpr->Pop()->Cast<LogicalGet>();
-  return !Catalog::RelationGetIndexList(get.table_desc->relid).empty();
+  return !get.relation_info->index_list.empty();
 }
 
+// TODO: support more index type, check create_index_paths for more info
+// 1. btree   sorted index
+// 2. hash    eq index
+// 3. gin
+// 4. gist
+// 5. spgist
+// bitmap index
 void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
                               OptimizationContext *context) const {
   const auto &get = pexpr->Cast<LogicalGet>();
-  (void)get;
+  const auto &index_list = get.relation_info->index_list;
+  auto sort = context->GetRequiredProperties()->GetPropertyOfType(PropertyType::SORT);
   // 1. if no condition, check required sort property
+  if (sort) {
+    const auto *sort_prop = sort->As<PropertySort>();
+    for (auto index : index_list) {
+      auto path_key = index.GetScanDirection(sort_prop->GetSortSpec());
+      // TODO: get lower cost path
+      // index (a, b), index(a) select order by (a)
+      //  shoulde choose index (a)
+      //  INDEX: create index tx on ta(a desc nulls first)
+      if (path_key != ScanDirection::Invalid) {
+        pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
+            get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
+      }
+    }
+  }
 
   // 2. if has condition, check if it can be pushed down to index
 }
@@ -62,10 +87,8 @@ void ImplementLimit::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr 
                                OptimizationContext *context) const {
   const auto &pop_limit = pexpr->Cast<LogicalLimit>();
 
-  auto *pexpr_limit = new OperatorNode(
-      std::make_shared<PhysicalLimit>(pop_limit.order_spec, pop_limit.limit, pop_limit.offset), pexpr->children);
-
-  pxfres.emplace_back(pexpr_limit);
+  pxfres.emplace_back(MakeOperatorNode(
+      std::make_shared<PhysicalLimit>(pop_limit.order_spec, pop_limit.limit, pop_limit.offset), pexpr->children));
 }
 
 Select2Filter::Select2Filter() {
@@ -78,9 +101,7 @@ void Select2Filter::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
                               OptimizationContext *context) const {
   const auto &pexpr_select = pexpr->Cast<LogicalFilter>();
 
-  auto *pexpr_filter = new OperatorNode(std::make_shared<PhysicalFilter>(pexpr_select.filter), pexpr->children);
-
-  pxfres.emplace_back(pexpr_filter);
+  pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalFilter>(pexpr_select.filter), pexpr->children));
 }
 
 Project2ComputeScalarRule::Project2ComputeScalarRule() {
@@ -92,10 +113,9 @@ Project2ComputeScalarRule::Project2ComputeScalarRule() {
 void Project2ComputeScalarRule::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
                                           OptimizationContext *context) const {
   const auto &project = pexpr->Cast<LogicalProject>();
-  auto *pexpr_compute_scalar =
-      new OperatorNode(std::make_shared<PhysicalComputeScalar>(project.project_exprs), pexpr->children);
 
-  pxfres.emplace_back(pexpr_compute_scalar);
+  pxfres.emplace_back(
+      MakeOperatorNode(std::make_shared<PhysicalComputeScalar>(project.project_exprs), pexpr->children));
 }
 
 static void ImplementHashJoin(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, JoinType join_type) {
@@ -119,10 +139,8 @@ static void ImplementHashJoin(OperatorNodeArray &pxfres, const OperatorNodePtr &
 
   // Add an alternative only if we found at least one hash-joinable predicate
   if (0 != pdrgpexpr_outer.size()) {
-    auto *pexpr_result =
-        new OperatorNode(std::make_shared<PhysicalHashJoin>(join_type, pexpr_scalar), {pexpr_outer, pexpr_inner});
-
-    pxfres.emplace_back(pexpr_result);
+    pxfres.emplace_back(
+        MakeOperatorNode(std::make_shared<PhysicalHashJoin>(join_type, pexpr_scalar), {pexpr_outer, pexpr_inner}));
   }
 }
 
@@ -143,9 +161,8 @@ void ImplementInnerJoin::Transform(OperatorNodeArray &pxfres, const OperatorNode
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
   ImplementHashJoin(pxfres, pexpr, JOIN_INNER);
 
-  auto *pexpr_binary =
-      new OperatorNode(std::make_shared<PhysicalNLJoin>(JOIN_INNER, logical_join.filter), pexpr->children);
-  pxfres.emplace_back(pexpr_binary);
+  pxfres.emplace_back(
+      MakeOperatorNode(std::make_shared<PhysicalNLJoin>(JOIN_INNER, logical_join.filter), pexpr->children));
 }
 
 GbAgg2HashAgg::GbAgg2HashAgg() {
@@ -165,10 +182,8 @@ void GbAgg2HashAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
   if (pop_agg.project_exprs.empty())
     return;
 
-  auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalHashAgg>(pop_agg.group_columns, pop_agg.project_exprs),
-                                     pexpr->children);
-
-  pxfres.emplace_back(pexpr_alt);
+  pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalHashAgg>(pop_agg.group_columns, pop_agg.project_exprs),
+                                       pexpr->children));
 }
 
 GbAgg2ScalarAgg::GbAgg2ScalarAgg() {
@@ -185,10 +200,8 @@ void GbAgg2ScalarAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr
                                 OptimizationContext *context) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
 
-  auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalScalarAgg>(pop_agg.group_columns, pop_agg.project_exprs),
-                                     pexpr->children);
-
-  pxfres.emplace_back(pexpr_alt);
+  pxfres.emplace_back(MakeOperatorNode(
+      std::make_shared<PhysicalScalarAgg>(pop_agg.group_columns, pop_agg.project_exprs), pexpr->children));
 }
 
 GbAgg2StreamAgg::GbAgg2StreamAgg() {
@@ -206,10 +219,8 @@ void GbAgg2StreamAgg::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr
                                 OptimizationContext *context) const {
   const auto &pop_agg = pexpr->Cast<LogicalGbAgg>();
 
-  auto *pexpr_alt = new OperatorNode(std::make_shared<PhysicalStreamAgg>(pop_agg.group_columns, pop_agg.project_exprs),
-                                     pexpr->children);
-
-  pxfres.emplace_back(pexpr_alt);
+  pxfres.emplace_back(MakeOperatorNode(
+      std::make_shared<PhysicalStreamAgg>(pop_agg.group_columns, pop_agg.project_exprs), pexpr->children));
 }
 
 Join2NestedLoopJoin::Join2NestedLoopJoin() {
@@ -233,10 +244,8 @@ void Join2NestedLoopJoin::Transform(OperatorNodeArray &pxfres, const OperatorNod
                                     OptimizationContext *context) const {
   const auto &logical_join = pexpr->Cast<LogicalJoin>();
 
-  auto *pexpr_binary =
-      new OperatorNode(std::make_shared<PhysicalNLJoin>(logical_join.join_type, logical_join.filter), pexpr->children);
-
-  pxfres.emplace_back(pexpr_binary);
+  pxfres.emplace_back(
+      MakeOperatorNode(std::make_shared<PhysicalNLJoin>(logical_join.join_type, logical_join.filter), pexpr->children));
 }
 
 Join2HashJoin::Join2HashJoin() {
@@ -270,10 +279,8 @@ void Join2HashJoin::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
 
   // Add an alternative only if we found at least one hash-joinable predicate
   if (0 != pdrgpexpr_outer.size()) {
-    auto *pexpr_result = new OperatorNode(std::make_shared<PhysicalHashJoin>(logical_join.join_type, pexpr_scalar),
-                                          {pexpr_outer, pexpr_inner});
-
-    pxfres.emplace_back(pexpr_result);
+    pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalHashJoin>(logical_join.join_type, pexpr_scalar),
+                                         {pexpr_outer, pexpr_inner}));
   }
 }
 
@@ -289,12 +296,9 @@ void ImplementApply::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr 
                                OptimizationContext *context) const {
   const auto &pop_apply = pexpr->Cast<LogicalApply>();
 
-  auto *pexpr_physical_apply =
-      new OperatorNode(std::make_shared<PhysicalApply>(pop_apply.expr_refs, pop_apply.subquery_type,
-                                                       pop_apply.is_not_subquery, pop_apply.filter),
-                       pexpr->children);
-
-  pxfres.emplace_back(pexpr_physical_apply);
+  pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalApply>(pop_apply.expr_refs, pop_apply.subquery_type,
+                                                                       pop_apply.is_not_subquery, pop_apply.filter),
+                                       pexpr->children));
 }
 
 }  // namespace pgp

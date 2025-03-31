@@ -1,5 +1,7 @@
 #include "pg_operator/logical_operator.h"
 
+#include <cstring>
+
 #include "common/hash_util.h"
 #include "pg_operator/operator.h"
 #include "pg_operator/operator_node.h"
@@ -47,11 +49,12 @@ bool LogicalJoin::operator==(const Operator &other) const {
   return false;
 }
 
+// unique hash val to distinguish different logical get nodes
+// hash relid and alias name, relation_info must be same for same table, skip it
 hash_t LogicalGet::Hash() const {
   auto hash = Operator::Hash();
   hash = HashUtil::CombineHashes(hash, HashUtil::Hash(table_desc->relid));
   hash = HashUtil::CombineHashes(hash, HashUtil::Hash(table_desc->eref->aliasname));
-  hash = HashUtil::CombineHashes(hash, ColRefContainerHash(output_columns));
   if (filter != nullptr)
     hash = HashUtil::CombineHashes(hash, filter->Hash());
 
@@ -62,7 +65,9 @@ bool LogicalGet::operator==(const Operator &other) const {
   if (Operator::operator==(other)) {
     const auto &get_node = other.Cast<LogicalGet>();
 
-    return get_node.table_desc->relid == table_desc->relid && get_node.output_columns == output_columns;
+    if (filter && *filter == *get_node.filter)
+      return get_node.table_desc->relid == table_desc->relid &&
+             std::strcmp(table_desc->eref->aliasname, get_node.table_desc->eref->aliasname) == 0;
   }
   return false;
 }
