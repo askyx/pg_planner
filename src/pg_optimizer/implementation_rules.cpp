@@ -57,7 +57,7 @@ void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
   const auto &get = pexpr->Cast<LogicalGet>();
   const auto &index_list = get.relation_info->index_list;
   auto sort = context->GetRequiredProperties()->GetPropertyOfType(PropertyType::SORT);
-  // 1. if no condition, check required sort property
+  // 1. if no condition, check required sort property for btree index
   if (sort) {
     const auto *sort_prop = sort->As<PropertySort>();
     for (auto index : index_list) {
@@ -66,7 +66,7 @@ void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
       // index (a, b), index(a) select order by (a)
       //  shoulde choose index (a)
       //  INDEX: create index tx on ta(a desc nulls first)
-      if (path_key != ScanDirection::Invalid) {
+      if (path_key != NoMovementScanDirection) {
         pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
             get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
       }

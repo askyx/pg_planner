@@ -90,7 +90,7 @@ struct PlanGenerator {
 
     List *subplan_entries_list{nullptr};
 
-    int32_t GetNextPlanId() { return ++plan_id_counter; }
+    int32_t GetNextPlanId() { return plan_id_counter++; }
 
     int32_t GetNextParamId(Oid typeoid) {
       param_types_list = lappend_oid(param_types_list, typeoid);

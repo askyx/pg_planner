@@ -1,0 +1,67 @@
+--------------
+-- test for btree index
+--------------
+drop table if exists t1;
+create table t1 (a int, b int, c int);
+create index idx on t1 (a);                 -- eq to (a asc nulls last);
+create index idx_asc_1 on t1 (a asc);       -- eq to (a asc nulls last);
+create index idx_asc_2 on t1 (a asc nulls first);
+create index idx_asc_3 on t1 (a asc nulls last);
+create index idx_desc_1 on t1 (a desc);      -- eq to (a desc nulls first);
+create index idx_desc_2 on t1 (a desc nulls first);
+create index idx_desc_3 on t1 (a desc nulls last);
+create index idx_asc_nulls_first on t1 (a nulls first); -- eq to (a asc nulls first);
+create index idx_asc_nulls_last on t1 (a nulls last);   -- eq to (a asc nulls last);
+\d+ t1
+insert into t1 values (1, 2, 3), (null, 5, 6), (7, 8, 9);
+insert into t1 values (null, 11, 12), (13, 14, 15), (null, 17, 18);
+
+set pg_planner.enable_planner to on;
+
+-- ~(idx | idx_asc_1 | idx_asc_3 | idx_asc_nulls_last)
+explain select * from t1 order by a;
+-- ~(idx_desc_1 | idx_desc_2) 
+explain select * from t1 order by a desc;
+-- ~(idx_desc_1 | idx_desc_2) 
+explain select * from t1 order by a desc nulls first;
+explain select * from t1 order by a desc nulls last;
+explain select * from t1 order by a asc;
+explain select * from t1 order by a asc nulls first;
+explain select * from t1 order by a asc nulls last;
+explain select * from t1 order by a nulls first;
+explain select * from t1 order by a nulls last;
+
+select * from t1 order by a;
+select * from t1 order by a desc;
+select * from t1 order by a desc nulls first;
+select * from t1 order by a desc nulls last;
+select * from t1 order by a asc;
+select * from t1 order by a asc nulls first;
+select * from t1 order by a asc nulls last;
+select * from t1 order by a nulls first;
+select * from t1 order by a nulls last;
+
+set pg_planner.enable_planner to off;
+
+-- ~(idx | idx_asc_1 | idx_asc_3 | idx_asc_nulls_last)
+explain select * from t1 order by a;
+-- ~(idx_desc_1 | idx_desc_2) 
+explain select * from t1 order by a desc;
+-- ~(idx_desc_1 | idx_desc_2) 
+explain select * from t1 order by a desc nulls first;
+explain select * from t1 order by a desc nulls last;
+explain select * from t1 order by a asc;
+explain select * from t1 order by a asc nulls first;
+explain select * from t1 order by a asc nulls last;
+explain select * from t1 order by a nulls first;
+explain select * from t1 order by a nulls last;
+
+select * from t1 order by a;
+select * from t1 order by a desc;
+select * from t1 order by a desc nulls first;
+select * from t1 order by a desc nulls last;
+select * from t1 order by a asc;
+select * from t1 order by a asc nulls first;
+select * from t1 order by a asc nulls last;
+select * from t1 order by a nulls first;
+select * from t1 order by a nulls last;

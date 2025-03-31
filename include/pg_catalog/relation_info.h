@@ -7,14 +7,10 @@
 
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/order_spec.h"
-
+extern "C" {
+#include <access/sdir.h>
+}
 namespace pgp {
-
-enum class ScanDirection {
-  Invalid,
-  Forward,
-  Backward,
-};
 
 struct IndexInfo {
   Oid index;

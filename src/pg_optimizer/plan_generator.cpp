@@ -606,6 +606,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       auto *index_scan = (IndexScan *)index_scan_meta.plan;
       index_scan->indexid = index_scan_node.index_id;
+      index_scan->indexorderdir = index_scan_node.scan_direction;
 
       return index_scan_meta;
     }

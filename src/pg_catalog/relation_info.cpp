@@ -2,6 +2,7 @@
 
 #include <bitset>
 
+#include "access/sdir.h"
 #include "common/exception.h"
 #include "pg_optimizer/colref.h"
 
@@ -34,10 +35,10 @@ ScanDirection IndexInfo::GetScanDirection(const std::shared_ptr<OrderSpec> &orde
   }
 
   if (order_drection_bitset == index_drection_bitset)
-    return ScanDirection::Forward;
+    return ForwardScanDirection;
   if ((order_drection_bitset ^ index_drection_bitset) == 3)
-    return ScanDirection::Backward;
-  return ScanDirection::Invalid;
+    return BackwardScanDirection;
+  return NoMovementScanDirection;
 }
 
 std::string IndexInfo::ToString() const {
