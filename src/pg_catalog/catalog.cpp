@@ -105,6 +105,7 @@ Oid Catalog::GetAggTranstype(Oid aggfnoid) {
 }
 
 // TODO: check for get_relation_info
+// TODO: system cols
 RelationInfoPtr Catalog::GetRelationInfo(Oid rel_oid) {
   auto *rel = RelationIdGetRelation(rel_oid);
   auto rel_close = pgp::ScopedDefer{[] {}, [&]() { RelationClose(rel); }};

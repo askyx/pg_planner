@@ -83,6 +83,18 @@ class PhysicalIndexScan : public PhysicalScan {
   bool operator==(const Operator &other) const override;
 };
 
+class PhysicalIndexOnlyScan : public PhysicalIndexScan {
+ public:
+  constexpr static OperatorType TYPE = OperatorType::PhysicalIndexOnlyScan;
+
+  PhysicalIndexOnlyScan(RangeTblEntry *table_desc, RelationInfoPtr relation_info, ItemExprPtr filter, Oid index_oid,
+                        ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec)
+      : PhysicalIndexScan(table_desc, std::move(relation_info), std::move(filter), index_oid, scan_direction,
+                          std::move(order_spec)) {
+    kind = OperatorType::PhysicalIndexOnlyScan;
+  }
+};
+
 class PhysicalLimit : public PhysicalOperator {
  public:
   constexpr static OperatorType TYPE = OperatorType::PhysicalLimit;

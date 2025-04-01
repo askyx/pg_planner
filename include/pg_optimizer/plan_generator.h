@@ -10,6 +10,7 @@
 extern "C" {
 #include <postgres.h>
 
+#include <nodes/nodes.h>
 #include <nodes/parsenodes.h>
 #include <nodes/plannodes.h>
 #include <nodes/primnodes.h>
@@ -23,6 +24,15 @@ class PhysicalApply;
 class PhysicalNLJoin;
 
 struct PlanGenerator;
+
+template <typename T>
+concept IsScanDerived = requires() { T::scan; };
+
+template <typename T>
+concept IsPlanDerived = requires() { T::plan; };
+
+template <typename T>
+concept IsJoinDerived = requires() { T::join; };
 
 struct PlanMeta {
   PlanGenerator &generator;
@@ -39,29 +49,28 @@ struct PlanMeta {
     Index rte_index;
   } range_table_context;
 
+  template <IsScanDerived N, NodeTag T>
+  PlanMeta &GenerateScanNode(int plan_node_id);
+
+  template <IsPlanDerived N, NodeTag T>
+  PlanMeta &GeneratePlanNode(int plan_node_id);
+
+  template <IsJoinDerived N, NodeTag T>
+  PlanMeta &GenerateJoinNode(int plan_node_id, JoinType join_type);
+
   PlanMeta &InitRangeTableContext(RangeTblEntry *rte);
 
   PlanMeta &SetPlanStats(GroupExpression *gexpr);
 
+  // for computed target list
   PlanMeta &GenerateTargetList(const ExprArray &project_list, const ColRefArray &req_cols);
 
   PlanMeta &GenerateTargetList(const ColRefArray &req_cols);
 
-  PlanMeta &GenerateFilter(const ItemExprPtr &filter_node, bool join_filter = false);
+  PlanMeta &GenerateIndexTargetList(const ColRefArray &req_cols);
 
-  PlanMeta &GenerateResult(int plan_node_id);
-
-  PlanMeta &GenerateSeqScan(int plan_node_id);
-
-  PlanMeta &GenerateIndexScan(int plan_node_id);
-
-  PlanMeta &GenerateSort(int plan_node_id);
-
-  PlanMeta &GenerateLimit(int plan_node_id);
-
-  PlanMeta &GenerateNestedLoopJoin(int plan_node_id, const PhysicalNLJoin &nljoin_node);
-
-  PlanMeta &GenerateAgg(int plan_node_id, const PhysicalAgg &agg_node);
+  template <bool join_filter = false>
+  PlanMeta &GenerateFilter(const ItemExprPtr &filter_node);
 
   PlanMeta &GenerateSubplan(const PhysicalApply &apply);
 

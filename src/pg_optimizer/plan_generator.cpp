@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "common/exception.h"
+#include "common/pg_guard.h"
 #include "nodes/plannodes.h"
 #include "pg_catalog/catalog.h"
 #include "pg_operator/item_expr.h"
@@ -24,6 +25,51 @@ extern "C" {
 }
 
 namespace pgp {
+
+template <IsScanDerived N, NodeTag T>
+PlanMeta &PlanMeta::GenerateScanNode(int plan_node_id) {
+  auto *node = (N *)NewNode<T>(sizeof(N));
+
+  node->scan.scanrelid = range_table_context.rte_index;
+  plan = &(node->scan.plan);
+  plan->plan_node_id = plan_node_id;
+
+  return *this;
+}
+
+template <IsPlanDerived N, NodeTag T>
+PlanMeta &PlanMeta::GeneratePlanNode(int plan_node_id) {
+  auto *node = (N *)NewNode<T>(sizeof(N));
+
+  plan = &node->plan;
+  plan->plan_node_id = plan_node_id;
+  plan->lefttree = children_metas[0].plan;
+
+  return *this;
+}
+
+template <IsJoinDerived N, NodeTag T>
+PlanMeta &PlanMeta::GenerateJoinNode(int plan_node_id, JoinType join_type) {
+  auto *node = (N *)NewNode<T>(sizeof(N));
+  plan = &(node->join.plan);
+  plan->plan_node_id = plan_node_id;
+
+  plan->lefttree = children_metas[0].plan;
+  plan->righttree = children_metas[1].plan;
+
+  node->join.jointype = join_type;
+
+  return *this;
+}
+
+PlanMeta &PlanMeta::InitRangeTableContext(RangeTblEntry *rte) {
+  range_table_context.init = true;
+  range_table_context.rte_index = generator.generator_context.GetRTEIndexByAssignedQueryId();
+  range_table_context.rel_oid = rte->relid;
+  generator.generator_context.AddRTE(rte);
+
+  return *this;
+}
 
 PlanMeta &PlanMeta::SetPlanStats(GroupExpression *gexpr) {
   plan->startup_cost = 0;
@@ -126,77 +172,29 @@ PlanMeta &PlanMeta::GenerateTargetList(const ColRefArray &req_cols) {
   return *this;
 }
 
-PlanMeta &PlanMeta::GenerateFilter(const ItemExprPtr &filter_node, bool join_filter) {
+PlanMeta &PlanMeta::GenerateIndexTargetList(const ColRefArray &req_cols) {
+  List *target_list = NIL;
+  AttrNumber resno = 1;
+  for (auto *colref : req_cols) {
+    auto *var = GenerateVarExpr(colref);
+    auto *target_entry = GenerateTargetEntry(var, resno++, pstrdup(colref->name.c_str()), colref->ref_id);
+    target_list = lappend(target_list, target_entry);
+  }
+  auto *indexonlyscan = (IndexOnlyScan *)plan;
+  indexonlyscan->indextlist = target_list;
+
+  return *this;
+}
+
+template <bool join_filter>
+PlanMeta &PlanMeta::GenerateFilter(const ItemExprPtr &filter_node) {
   if (filter_node != nullptr) {
-    if (join_filter) {
+    if constexpr (join_filter) {
       auto *join = (Join *)plan;
       join->joinqual = list_make1(GenerateExpr(filter_node));
     } else
       plan->qual = list_make1(GenerateExpr(filter_node));
   }
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateResult(int plan_node_id) {
-  auto *node = makeNode(Result);
-  plan = &node->plan;
-  plan->plan_node_id = plan_node_id;
-  plan->lefttree = children_metas[0].plan;
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateNestedLoopJoin(int plan_node_id, const PhysicalNLJoin &nljoin_node) {
-  auto *nested_loop = makeNode(NestLoop);
-  Join *join = &(nested_loop->join);
-  plan = &(join->plan);
-  plan->plan_node_id = plan_node_id;
-
-  plan->lefttree = children_metas[0].plan;
-  plan->righttree = children_metas[1].plan;
-
-  join->jointype = nljoin_node.join_type;
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateLimit(int plan_node_id) {
-  auto *limit = makeNode(Limit);
-
-  plan = &(limit->plan);
-  plan->plan_node_id = plan_node_id;
-  plan->lefttree = children_metas[0].plan;
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateSort(int plan_node_id) {
-  auto *sort = makeNode(Sort);
-
-  plan = &(sort->plan);
-  plan->plan_node_id = plan_node_id;
-  plan->lefttree = children_metas[0].plan;
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateSeqScan(int plan_node_id) {
-  auto *seq_scan = makeNode(SeqScan);
-
-  seq_scan->scan.scanrelid = range_table_context.rte_index;
-  plan = &(seq_scan->scan.plan);
-  plan->plan_node_id = plan_node_id;
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateIndexScan(int plan_node_id) {
-  auto *index_scan = makeNode(IndexScan);
-
-  index_scan->scan.scanrelid = range_table_context.rte_index;
-  plan = &(index_scan->scan.plan);
-  plan->plan_node_id = plan_node_id;
 
   return *this;
 }
@@ -227,24 +225,6 @@ PlanMeta &PlanMeta::GenerateSubplan(const PhysicalApply &apply) {
     generator.colid_subplan_map[colref->ref_id] = (Expr *)subplan;
 
   generator.param_id_map.clear();
-
-  return *this;
-}
-
-PlanMeta &PlanMeta::GenerateAgg(int plan_node_id, const PhysicalAgg &agg_node) {
-  Agg *agg = makeNode(Agg);
-
-  plan = &(agg->plan);
-  plan->plan_node_id = plan_node_id;
-  plan->lefttree = children_metas[0].plan;
-
-  // TODO: mixed
-  if (agg_node.kind == OperatorType::PhysicalStreamAgg)
-    agg->aggstrategy = AGG_SORTED;
-  if (agg_node.kind == OperatorType::PhysicalHashAgg)
-    agg->aggstrategy = AGG_HASHED;
-  if (agg_node.kind == OperatorType::PhysicalScalarAgg)
-    agg->aggstrategy = AGG_PLAIN;
 
   return *this;
 }
@@ -549,15 +529,6 @@ Expr *PlanMeta::GenerateVarExpr(ColRef *colref) {
   return (Expr *)var;
 }
 
-PlanMeta &PlanMeta::InitRangeTableContext(RangeTblEntry *rte) {
-  range_table_context.init = true;
-  range_table_context.rte_index = generator.generator_context.GetRTEIndexByAssignedQueryId();
-  range_table_context.rel_oid = rte->relid;
-  generator.generator_context.AddRTE(rte);
-
-  return *this;
-}
-
 PlannedStmt *PlanGenerator::BuildStmt(const PlanMeta &plan_meta, std::vector<std::string> pdrgpmdname) const {
   int idx = 0;
   foreach_node(TargetEntry, target, plan_meta.plan->targetlist) {
@@ -587,7 +558,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
       PlanMeta scan_meta{.generator = *this, .children_metas = children_metas};
 
       scan_meta.InitRangeTableContext(scan_node.table_desc)
-          .GenerateSeqScan(generator_context.GetNextPlanId())
+          .GenerateScanNode<SeqScan, T_SeqScan>(generator_context.GetNextPlanId())
           .GenerateTargetList(req_cols)
           .GenerateFilter(scan_node.filter)
           .SetPlanStats(gexpr);
@@ -600,7 +571,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
       PlanMeta index_scan_meta{.generator = *this, .children_metas = children_metas};
 
       index_scan_meta.InitRangeTableContext(index_scan_node.table_desc)
-          .GenerateIndexScan(generator_context.GetNextPlanId())
+          .GenerateScanNode<IndexScan, T_IndexScan>(generator_context.GetNextPlanId())
           .GenerateTargetList(req_cols)
           .SetPlanStats(gexpr);
 
@@ -611,6 +582,22 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
       return index_scan_meta;
     }
 
+    case pgp::OperatorType::PhysicalIndexOnlyScan: {
+      const auto &index_only_scan_node = gexpr->Pop()->Cast<PhysicalIndexOnlyScan>();
+
+      PlanMeta index_only_scan_meta{.generator = *this, .children_metas = children_metas};
+      index_only_scan_meta.InitRangeTableContext(index_only_scan_node.table_desc)
+          .GenerateScanNode<IndexOnlyScan, T_IndexOnlyScan>(generator_context.GetNextPlanId())
+          .GenerateIndexTargetList(req_cols)
+          .SetPlanStats(gexpr);
+
+      auto *index_only_scan = (IndexOnlyScan *)index_only_scan_meta.plan;
+      index_only_scan->indexid = index_only_scan_node.index_id;
+      index_only_scan->indexorderdir = index_only_scan_node.scan_direction;
+
+      return index_only_scan_meta;
+    }
+
     case OperatorType::PhysicalStreamAgg:
     case OperatorType::PhysicalHashAgg:
     case OperatorType::PhysicalScalarAgg: {
@@ -618,13 +605,19 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       PlanMeta agg_meta{.generator = *this, .children_metas = children_metas};
 
-      agg_meta.GenerateAgg(generator_context.GetNextPlanId(), agg_node)
+      agg_meta.GeneratePlanNode<Agg, T_Agg>(generator_context.GetNextPlanId())
           .GenerateTargetList(agg_node.project_exprs, req_cols)
           .SetAggGroupInfo(agg_node)
           .SetPlanStats(gexpr);
 
       auto *plan = (Agg *)agg_meta.plan;
       plan->numGroups = (int64_t)plan->plan.plan_rows;
+      if (agg_node.kind == OperatorType::PhysicalStreamAgg)
+        plan->aggstrategy = AGG_SORTED;
+      if (agg_node.kind == OperatorType::PhysicalHashAgg)
+        plan->aggstrategy = AGG_HASHED;
+      if (agg_node.kind == OperatorType::PhysicalScalarAgg)
+        plan->aggstrategy = AGG_PLAIN;
 
       return agg_meta;
     }
@@ -634,7 +627,9 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       PlanMeta limit_meta{.generator = *this, .children_metas = children_metas};
 
-      limit_meta.GenerateLimit(generator_context.GetNextPlanId()).GenerateTargetList(req_cols).SetPlanStats(gexpr);
+      limit_meta.GeneratePlanNode<Limit, T_Limit>(generator_context.GetNextPlanId())
+          .GenerateTargetList(req_cols)
+          .SetPlanStats(gexpr);
 
       auto *limit = (Limit *)limit_meta.plan;
       limit->limitCount = (Node *)limit_meta.GenerateExpr(limit_node.limit);
@@ -649,9 +644,9 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       PlanMeta join_meta{.generator = *this, .children_metas = children_metas};
 
-      join_meta.GenerateNestedLoopJoin(generator_context.GetNextPlanId(), join_node)
+      join_meta.GenerateJoinNode<NestLoop, T_NestLoop>(generator_context.GetNextPlanId(), join_node.join_type)
           .GenerateTargetList(req_cols)
-          .GenerateFilter(join_node.filter, true)
+          .GenerateFilter<true>(join_node.filter)
           .SetPlanStats(gexpr);
 
       return join_meta;
@@ -663,12 +658,12 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
       PlanMeta apply_meta{.generator = *this, .children_metas = children_metas};
 
       if (apply_node.subquery_type == EXPR_SUBLINK) {
-        apply_meta.GenerateResult(generator_context.GetNextPlanId())
+        apply_meta.GeneratePlanNode<Result, T_Result>(generator_context.GetNextPlanId())
             .GenerateSubplan(apply_node)
             .GenerateTargetList(req_cols)
             .GenerateFilter(apply_node.filter);
       } else if (apply_node.subquery_type == ANY_SUBLINK || apply_node.subquery_type == ALL_SUBLINK) {
-        apply_meta.GenerateResult(generator_context.GetNextPlanId())
+        apply_meta.GeneratePlanNode<Result, T_Result>(generator_context.GetNextPlanId())
             .GenerateSubplan(apply_node)
             .GenerateTargetList(req_cols);
         auto *plan = apply_meta.plan;
@@ -703,7 +698,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
         }
 
       } else if (apply_node.subquery_type == EXISTS_SUBLINK) {
-        apply_meta.GenerateResult(generator_context.GetNextPlanId())
+        apply_meta.GeneratePlanNode<Result, T_Result>(generator_context.GetNextPlanId())
             .GenerateSubplan(apply_node)
             .GenerateTargetList(req_cols);
 
@@ -732,7 +727,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
 
       PlanMeta sort_meta{.generator = *this, .children_metas = children_metas};
 
-      sort_meta.GenerateSort(generator_context.GetNextPlanId())
+      sort_meta.GeneratePlanNode<Sort, T_Sort>(generator_context.GetNextPlanId())
           .GenerateTargetList(req_cols)
           .SetSortInfo(sort_node)
           .SetPlanStats(gexpr);
@@ -744,7 +739,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
       const auto &result_node = gexpr->Pop()->Cast<PhysicalComputeScalar>();
       PlanMeta result_meta{.generator = *this, .children_metas = children_metas};
 
-      result_meta.GenerateResult(generator_context.GetNextPlanId())
+      result_meta.GeneratePlanNode<Result, T_Result>(generator_context.GetNextPlanId())
           .GenerateTargetList(result_node.project_exprs, req_cols)
           .SetPlanStats(gexpr);
 
