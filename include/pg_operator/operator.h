@@ -24,6 +24,9 @@ enum class OperatorType {
   LogicalJoin,
 
   PhysicalScan,
+  PhysicalIndexScan,
+  PhysicalIndexOnlyScan,
+
   PhysicalFilter,
   PhysicalFullMergeJoin,
   PhysicalNLJoin,

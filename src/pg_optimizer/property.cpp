@@ -14,7 +14,7 @@ void PropertySet::AddProperty(const std::shared_ptr<Property> &property) {
   properties_.insert(iter, property);
 }
 
-const std::shared_ptr<Property> PropertySet::GetPropertyOfType(PropertyType type) const {
+std::shared_ptr<Property> PropertySet::GetPropertyOfType(PropertyType type) const {
   for (const auto &prop : properties_) {
     if (prop->Type() == type) {
       return prop;

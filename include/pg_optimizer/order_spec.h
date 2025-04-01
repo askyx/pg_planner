@@ -11,24 +11,19 @@
 
 namespace pgp {
 
-enum class NullsOrder {
-  EnullsLast,
-  EnullsFirst,
-};
-
 class OrderSpec {
  private:
   struct SortElement {
     Oid sort_op;
     ColRef *colref;
-    NullsOrder nulls_order;
+    bool nulls_first;
     bool operator==(const SortElement &other) const {
-      return sort_op == other.sort_op && colref == other.colref && nulls_order == other.nulls_order;
+      return sort_op == other.sort_op && colref == other.colref && nulls_first == other.nulls_first;
     }
     uint32_t Hash() const {
       auto hash = HashUtil::Hash(sort_op);
       hash = HashUtil::CombineHashes(hash, colref->ref_id);
-      hash = HashUtil::CombineHashes(hash, static_cast<uint32_t>(nulls_order));
+      hash = HashUtil::CombineHashes(hash, HashUtil::Hash(nulls_first));
       return hash;
     }
   };

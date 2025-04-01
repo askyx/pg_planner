@@ -22,11 +22,11 @@ void OptimizerTask::PushTask(OptimizerTask *task) {
 }
 
 Memo &OptimizerTask::GetMemo() const {
-  return context_->GetOptimizerContext()->GetMemo();
+  return context_->GetOptimizerContext()->memo;
 }
 
 RuleSet &OptimizerTask::GetRuleSet() const {
-  return context_->GetOptimizerContext()->GetRuleSet();
+  return context_->GetOptimizerContext()->rule_set;
 }
 
 void OptimizeGroup::Execute() {
@@ -200,8 +200,7 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
 
     // Derive output and input properties
     ChildPropertyDeriver prop_deriver;
-    output_input_properties_ = prop_deriver.GetProperties(&context_->GetOptimizerContext()->GetMemo(),
-                                                          context_->GetRequiredProperties(), group_expr_);
+    output_input_properties_ = prop_deriver.GetProperties(&GetMemo(), context_->GetRequiredProperties(), group_expr_);
     cur_child_idx_ = 0;
 
     // TODO(patrick/boweic): If later on we support properties that may not be enforced in some
@@ -221,7 +220,7 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
     // Calculate local cost and update total cost
     if (cur_child_idx_ == 0) {
       CostCalculator cost_calculator;
-      cur_total_cost_ = cost_calculator.CalculateCost(&context_->GetOptimizerContext()->GetMemo(), group_expr_);
+      cur_total_cost_ = cost_calculator.CalculateCost(&GetMemo(), group_expr_);
     }
 
     auto child_size = group_expr_->GetChildGroup().size();
@@ -295,7 +294,7 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
           extended_prop_set->AddProperty(prop->Copy());
 
           CostCalculator cost_calculator;
-          cur_total_cost_ += cost_calculator.CalculateCost(&context_->GetOptimizerContext()->GetMemo(), enforced_expr);
+          cur_total_cost_ += cost_calculator.CalculateCost(&GetMemo(), enforced_expr);
 
           enforced_expr->SetLocalHashTable(extended_prop_set, {pre_output_prop_set}, cur_total_cost_);
           cur_group->SetExpressionCost(enforced_expr, cur_total_cost_, extended_prop_set);

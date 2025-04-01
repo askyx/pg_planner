@@ -93,10 +93,9 @@ Group *Optimizer::OptimizePlan(QueryInfo &query_info) {
 
   uint64_t elapsed_time = 0;
 
-  OLOGLN("Memo before Optimize:\n{}\n{}", context.GetMemo().ToString(),
-         root_context->GetRequiredProperties()->ToString());
+  OLOGLN("Memo before Optimize:\n{}\n{}", context.memo.ToString(), root_context->GetRequiredProperties()->ToString());
 
-  auto &task_stack = context.GetTaskStack();
+  auto &task_stack = context.task_stack;
 
   root_context->SetGlobalOptimizerContext(&context);
 
@@ -122,7 +121,7 @@ Group *Optimizer::OptimizePlan(QueryInfo &query_info) {
     elapsed_time += task_runtime;
   }
 
-  OLOG("Memo after Optimize:\n{}", context.GetMemo().ToString());
+  OLOG("Memo after Optimize:\n{}", context.memo.ToString());
 
   return root_group;
 }

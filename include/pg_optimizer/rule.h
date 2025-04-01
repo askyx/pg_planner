@@ -98,7 +98,7 @@ enum class RuleCategory {
 
 class RuleSet {
  private:
-  std::unordered_map<RuleCategory, std::vector<Rule *>> rule_set_;
+  std::unordered_map<RuleCategory, std::vector<Rule *>> rule_set;
 
   void Add(Rule *pxform);
 
@@ -109,7 +109,7 @@ class RuleSet {
 
   ~RuleSet();
 
-  std::vector<Rule *> &GetRulesByName(RuleCategory type) { return rule_set_[type]; }
+  std::vector<Rule *> &GetRulesByName(RuleCategory type) { return rule_set[type]; }
 };
 
 struct RuleWithPromise {

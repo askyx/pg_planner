@@ -1,15 +1,18 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
+
 extern "C" {
 #include <postgres.h>
 
+#include <nodes/nodes.h>
 #include <utils/elog.h>
 }
 
 #include "common/exception.h"
 
-namespace optimizer {
+namespace pgp {
 
 template <typename Func>
 inline auto pg_guard(Func func) ->  // NOLINT
@@ -48,7 +51,18 @@ inline auto pg_guard(Func func) ->  // NOLINT
   throw pgp::Exception(edata->filename, edata->lineno, edata->funcname, edata->message);
 }
 
-#define PG_GUARD(func) optimizer::pg_guard([&]() { return func; })
-#define PG_GUARD_VOID(func) optimizer::pg_guard([&]() { func; })
+#define PG_GUARD(func) pgp::pg_guard([&]() { return func; })
+#define PG_GUARD_VOID(func) pgp::pg_guard([&]() { func; })
 
-}  // namespace optimizer
+template <NodeTag tag>
+inline Node *NewNode(size_t size) {
+  Node *result;
+
+  Assert(size >= sizeof(Node)); /* need the tag, at least */
+  result = (Node *)palloc0(size);
+  result->type = tag;
+
+  return result;
+}
+
+}  // namespace pgp

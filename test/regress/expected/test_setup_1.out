@@ -11,7 +11,7 @@ select * from planner_test;
 ------+--------+---------
 (0 rows)
 
-set pg_orca.enable_planner to off;
+set pg_planner.enable_planner to off;
 create extension pg_tpch;
 --
 -- synchronous_commit=off delays when hint bits may be set. Some plans change

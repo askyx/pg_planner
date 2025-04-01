@@ -6,8 +6,8 @@
 #include <utility>
 #include <vector>
 
-#include "common/defer.h"
 #include "common/exception.h"
+#include "pg_catalog/catalog.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/logical_operator.h"
 #include "pg_operator/operator.h"
@@ -109,8 +109,7 @@ OperatorNodePtr TranslatorQuery::TranslateSelect() {
       // get the colid of the sorting column
       auto *colref = sort_group_attno_to_colid_mapping[sort_group_clause->tleSortGroupRef];
 
-      pos->AddSortElement({sort_group_clause->sortop, colref,
-                           sort_group_clause->nulls_first ? NullsOrder::EnullsFirst : NullsOrder::EnullsLast});
+      pos->AddSortElement({sort_group_clause->sortop, colref, sort_group_clause->nulls_first});
     }
     property_set_->AddProperty(std::make_shared<PropertySort>(pos));
   }
@@ -205,25 +204,12 @@ OperatorNodePtr TranslatorQuery::TranslateNode(RangeTblRef *node) {
         throw OptException("ONLY in the FROM clause");
       }
 
-      auto *rel = RelationIdGetRelation(rte->relid);
-      auto rel_close = pgp::ScopedDefer{[] {}, [&]() { RelationClose(rel); }};
+      auto relation_info = Catalog::GetRelationInfo(rte->relid);
 
-      ColRefArray output_columns;
+      for (auto *colref : relation_info->output_columns)
+        var_to_colid_map_.Insert(query_level_, rt_index, colref->attnum, colref);
 
-      for (int i = 0; i < RelationGetNumberOfAttributes(rel); i++) {
-        Form_pg_attribute att = TupleDescAttr(rel->rd_att, i);
-        auto item_width = get_attavgwidth(RelationGetRelid(rel), (AttrNumber)i);
-        if (item_width <= 0) {
-          item_width = get_typavgwidth(att->atttypid, att->atttypmod);
-        }
-        ColRef *colref = optimizer_context_->GetColumnFactory().PcrCreate(att->atttypid, att->atttypmod, false, true,
-                                                                          NameStr(att->attname), item_width);
-        output_columns.emplace_back(colref);
-        var_to_colid_map_.Insert(query_level_, rt_index, att->attnum, colref);
-        colref->attnum = att->attnum;
-      }
-
-      return MakeOperatorNode(std::make_shared<LogicalGet>(rte, output_columns));
+      return MakeOperatorNode(std::make_shared<LogicalGet>(rte, relation_info));
     }
 
     case RTE_SUBQUERY: {
@@ -313,7 +299,7 @@ ItemExprPtr TranslatorQuery::TranslateExprToProject(Expr *expr, OperatorNodePtr 
     if (alias_name == nullptr)
       alias_name = "?column?";
 
-    colref = optimizer_context_->GetColumnFactory().PcrCreate(expr_node->ExprReturnType(), -1, alias_name);
+    colref = optimizer_context_->column_factory.PcrCreate(expr_node->ExprReturnType(), -1, alias_name);
   }
 
   auto project = std::make_shared<ItemProjectElement>(colref);

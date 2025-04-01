@@ -41,14 +41,10 @@ explain verbose :query
  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
    Output: l_returnflag, l_linestatus, sum(l_quantity), sum(l_extendedprice), sum((l_extendedprice * ("numeric"(1) - l_discount))), sum(((l_extendedprice * ("numeric"(1) - l_discount)) * ("numeric"(1) + l_tax))), avg(l_quantity), avg(l_extendedprice), avg(l_discount), count()
    Group Key: lineitem.l_returnflag, lineitem.l_linestatus
-   ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+   ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
          Output: l_returnflag, l_quantity, l_tax, l_discount, l_linestatus, l_extendedprice
-         Sort Key: lineitem.l_returnflag, lineitem.l_linestatus
-         ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
-               Output: l_returnflag, l_quantity, l_tax, l_discount, l_linestatus, l_extendedprice
-               Filter: (lineitem.l_shipdate <= '09-02-1998'::date)
  Optimizer: PGP
-(10 rows)
+(6 rows)
 
 :query
  l_returnflag | l_linestatus | sum_qty | sum_base_price | sum_disc_price | sum_charge | avg_qty | avg_price | avg_disc | count_order 

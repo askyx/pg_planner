@@ -4,7 +4,7 @@
 #include "pg_optimizer/functional_dependency.h"
 
 extern "C" {
-#include "nodes/bitmapset.h"
+#include <nodes/bitmapset.h>
 }
 namespace pgp {
 

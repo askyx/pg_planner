@@ -1,8 +1,7 @@
 #pragma once
 
-#include <vector>
-
 #include "common/macros.h"
+#include "pg_catalog/relation_info.h"
 
 extern "C" {
 #include <utils/relcache.h>
@@ -39,6 +38,6 @@ class Catalog {
 
   static Oid GetAggTranstype(Oid aggfnoid);
 
-  static std::vector<Oid> RelationGetIndexList(Oid rel_oid);
+  static RelationInfoPtr GetRelationInfo(Oid rel_oid);
 };
 }  // namespace pgp

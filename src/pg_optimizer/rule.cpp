@@ -26,6 +26,7 @@ RuleSet::RuleSet() {
 
   Add(new Project2ComputeScalarRule());
   Add(new Get2TableScan());
+  Add(new Get2IndexScan());
   Add(new Select2Filter());
   Add(new Join2NestedLoopJoin());
   Add(new Join2HashJoin());
@@ -38,7 +39,7 @@ RuleSet::RuleSet() {
 }
 
 RuleSet::~RuleSet() {
-  for (const auto& [_, rules] : rule_set_) {
+  for (const auto& [_, rules] : rule_set) {
     for (auto* rule : rules)
       delete rule;
   }
@@ -46,9 +47,9 @@ RuleSet::~RuleSet() {
 
 void RuleSet::Add(Rule* pxform) {
   if (pxform->FImplementation())
-    rule_set_[RuleCategory::Implementation].emplace_back(pxform);
+    rule_set[RuleCategory::Implementation].emplace_back(pxform);
   else
-    rule_set_[RuleCategory::Exploration].emplace_back(pxform);
+    rule_set[RuleCategory::Exploration].emplace_back(pxform);
 }
 
 }  // namespace pgp
