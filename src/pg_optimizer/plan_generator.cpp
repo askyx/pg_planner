@@ -177,11 +177,14 @@ PlanMeta &PlanMeta::GenerateIndexTargetList(const ColRefArray &req_cols) {
   AttrNumber resno = 1;
   for (auto *colref : req_cols) {
     auto *var = GenerateVarExpr(colref);
-    auto *target_entry = GenerateTargetEntry(var, resno++, pstrdup(colref->name.c_str()), colref->ref_id);
+    auto *target_entry = makeTargetEntry(var, resno++, pstrdup(colref->name.c_str()), false);
     target_list = lappend(target_list, target_entry);
   }
   auto *indexonlyscan = (IndexOnlyScan *)plan;
   indexonlyscan->indextlist = target_list;
+
+  // update to INDEX_VAR
+  range_table_context.rte_index = INDEX_VAR;
 
   return *this;
 }
@@ -589,6 +592,7 @@ PlanMeta PlanGenerator::BuildPlan(GroupExpression *gexpr, const ColRefArray &req
       index_only_scan_meta.InitRangeTableContext(index_only_scan_node.table_desc)
           .GenerateScanNode<IndexOnlyScan, T_IndexOnlyScan>(generator_context.GetNextPlanId())
           .GenerateIndexTargetList(req_cols)
+          .GenerateTargetList(req_cols)
           .SetPlanStats(gexpr);
 
       auto *index_only_scan = (IndexOnlyScan *)index_only_scan_meta.plan;

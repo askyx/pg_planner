@@ -109,6 +109,7 @@ ColRef2DArray PropertiesDriver::PcrsRequired(GroupExpression *gexpr, const ColRe
     case OperatorType::PhysicalLimit:
     case OperatorType::PhysicalScan:
     case OperatorType::PhysicalIndexScan:
+    case OperatorType::PhysicalIndexOnlyScan:
     case OperatorType::PhysicalSort: {
       return {pcrs_required};
     }

@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "common/macros.h"
 #include "pg_catalog/relation_info.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/logical_operator.h"
@@ -66,9 +67,17 @@ void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
       // index (a, b), index(a) select order by (a)
       //  shoulde choose index (a)
       //  INDEX: create index tx on ta(a desc nulls first)
+      // TODO: pg support define one index for multiple time, only choose one index for one time
       if (path_key != NoMovementScanDirection) {
-        pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
-            get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
+        const auto &index_cols = index.GetIndexOutCols();
+        const auto &output = pexpr->DeriveOutputColumns();
+        OLOG("index def: {}\noutput: {}\n", ColRefContainerToString(index_cols), ColRefContainerToString(output));
+        if (ContainsAll(index_cols, output))
+          pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
+              get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
+        else
+          pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
+              get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
       }
     }
   }

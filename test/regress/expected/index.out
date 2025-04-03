@@ -1,18 +1,18 @@
---------------
+----------------------------
 -- test for btree index
---------------
+----------------------------
 drop table if exists t1;
 NOTICE:  table "t1" does not exist, skipping
 create table t1 (a int, b int, c int);
 create index idx on t1 (a);                 -- eq to (a asc nulls last);
 create index idx_asc_1 on t1 (a asc);       -- eq to (a asc nulls last);
 create index idx_asc_2 on t1 (a asc nulls first);
-create index idx_asc_3 on t1 (a asc nulls last);
+create index idx_asc_3 on t1 (a asc nulls last) include (b);
 create index idx_desc_1 on t1 (a desc);      -- eq to (a desc nulls first);
 create index idx_desc_2 on t1 (a desc nulls first);
-create index idx_desc_3 on t1 (a desc nulls last);
-create index idx_asc_nulls_first on t1 (a nulls first); -- eq to (a asc nulls first);
-create index idx_asc_nulls_last on t1 (a nulls last);   -- eq to (a asc nulls last);
+create index idx_desc_3 on t1 (a desc nulls last) include (c);
+create index idx_asc_nulls_first on t1 (a nulls first) include(c,b); -- eq to (a asc nulls first);
+create index idx_asc_nulls_last on t1 (a nulls last);                -- eq to (a asc nulls last);
 \d+ t1
                                     Table "public.t1"
  Column |  Type   | Collation | Nullable | Default | Storage | Stats target | Description 
@@ -24,12 +24,12 @@ Indexes:
     "idx" btree (a)
     "idx_asc_1" btree (a)
     "idx_asc_2" btree (a NULLS FIRST)
-    "idx_asc_3" btree (a)
-    "idx_asc_nulls_first" btree (a NULLS FIRST)
+    "idx_asc_3" btree (a) INCLUDE (b)
+    "idx_asc_nulls_first" btree (a NULLS FIRST) INCLUDE (c, b)
     "idx_asc_nulls_last" btree (a)
     "idx_desc_1" btree (a DESC)
     "idx_desc_2" btree (a DESC)
-    "idx_desc_3" btree (a DESC NULLS LAST)
+    "idx_desc_3" btree (a DESC NULLS LAST) INCLUDE (c)
 
 insert into t1 values (1, 2, 3), (null, 5, 6), (7, 8, 9);
 insert into t1 values (null, 11, 12), (13, 14, 15), (null, 17, 18);
@@ -59,9 +59,9 @@ explain select * from t1 order by a desc nulls first;
 (2 rows)
 
 explain select * from t1 order by a desc nulls last;
-                                         QUERY PLAN                                         
---------------------------------------------------------------------------------------------
- Index Scan Backward using idx_asc_nulls_first on t1  (cost=0.00..100.00 rows=1000 width=8)
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Index Only Scan Backward using idx_asc_nulls_first on t1  (cost=0.00..100.00 rows=1000 width=8)
  Optimizer: PGP
 (2 rows)
 
@@ -73,9 +73,9 @@ explain select * from t1 order by a asc;
 (2 rows)
 
 explain select * from t1 order by a asc nulls first;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Index Scan using idx_asc_nulls_first on t1  (cost=0.00..100.00 rows=1000 width=8)
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Index Only Scan using idx_asc_nulls_first on t1  (cost=0.00..100.00 rows=1000 width=8)
  Optimizer: PGP
 (2 rows)
 
@@ -87,9 +87,9 @@ explain select * from t1 order by a asc nulls last;
 (2 rows)
 
 explain select * from t1 order by a nulls first;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Index Scan using idx_asc_nulls_first on t1  (cost=0.00..100.00 rows=1000 width=8)
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Index Only Scan using idx_asc_nulls_first on t1  (cost=0.00..100.00 rows=1000 width=8)
  Optimizer: PGP
 (2 rows)
 
@@ -136,12 +136,12 @@ select * from t1 order by a desc nulls first;
 select * from t1 order by a desc nulls last;
  a  | b  | c  
 ----+----+----
- 13 | 14 | 15
-  7 |  8 |  9
-  1 |  2 |  3
-    | 17 | 18
-    | 11 | 12
-    |  5 |  6
+ 13 | 15 | 14
+  7 |  9 |  8
+  1 |  3 |  2
+    | 18 | 17
+    | 12 | 11
+    |  6 |  5
 (6 rows)
 
 select * from t1 order by a asc;
@@ -158,12 +158,12 @@ select * from t1 order by a asc;
 select * from t1 order by a asc nulls first;
  a  | b  | c  
 ----+----+----
-    |  5 |  6
-    | 11 | 12
-    | 17 | 18
-  1 |  2 |  3
-  7 |  8 |  9
- 13 | 14 | 15
+    |  6 |  5
+    | 12 | 11
+    | 18 | 17
+  1 |  3 |  2
+  7 |  9 |  8
+ 13 | 15 | 14
 (6 rows)
 
 select * from t1 order by a asc nulls last;
@@ -180,12 +180,12 @@ select * from t1 order by a asc nulls last;
 select * from t1 order by a nulls first;
  a  | b  | c  
 ----+----+----
-    |  5 |  6
-    | 11 | 12
-    | 17 | 18
-  1 |  2 |  3
-  7 |  8 |  9
- 13 | 14 | 15
+    |  6 |  5
+    | 12 | 11
+    | 18 | 17
+  1 |  3 |  2
+  7 |  9 |  8
+ 13 | 15 | 14
 (6 rows)
 
 select * from t1 order by a nulls last;
@@ -222,9 +222,9 @@ explain select * from t1 order by a desc nulls first;
 (1 row)
 
 explain select * from t1 order by a desc nulls last;
-                                         QUERY PLAN                                         
---------------------------------------------------------------------------------------------
- Index Scan Backward using idx_asc_nulls_first on t1  (cost=0.15..78.75 rows=2040 width=12)
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Index Only Scan Backward using idx_asc_nulls_first on t1  (cost=0.15..78.75 rows=2040 width=12)
 (1 row)
 
 explain select * from t1 order by a asc;
@@ -234,9 +234,9 @@ explain select * from t1 order by a asc;
 (1 row)
 
 explain select * from t1 order by a asc nulls first;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Index Scan using idx_asc_nulls_first on t1  (cost=0.15..78.75 rows=2040 width=12)
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Index Only Scan using idx_asc_nulls_first on t1  (cost=0.15..78.75 rows=2040 width=12)
 (1 row)
 
 explain select * from t1 order by a asc nulls last;
@@ -246,9 +246,9 @@ explain select * from t1 order by a asc nulls last;
 (1 row)
 
 explain select * from t1 order by a nulls first;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Index Scan using idx_asc_nulls_first on t1  (cost=0.15..78.75 rows=2040 width=12)
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Index Only Scan using idx_asc_nulls_first on t1  (cost=0.15..78.75 rows=2040 width=12)
 (1 row)
 
 explain select * from t1 order by a nulls last;

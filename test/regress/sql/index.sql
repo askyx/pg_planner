@@ -1,17 +1,17 @@
---------------
+----------------------------
 -- test for btree index
---------------
+----------------------------
 drop table if exists t1;
 create table t1 (a int, b int, c int);
 create index idx on t1 (a);                 -- eq to (a asc nulls last);
 create index idx_asc_1 on t1 (a asc);       -- eq to (a asc nulls last);
 create index idx_asc_2 on t1 (a asc nulls first);
-create index idx_asc_3 on t1 (a asc nulls last);
+create index idx_asc_3 on t1 (a asc nulls last) include (b);
 create index idx_desc_1 on t1 (a desc);      -- eq to (a desc nulls first);
 create index idx_desc_2 on t1 (a desc nulls first);
-create index idx_desc_3 on t1 (a desc nulls last);
-create index idx_asc_nulls_first on t1 (a nulls first); -- eq to (a asc nulls first);
-create index idx_asc_nulls_last on t1 (a nulls last);   -- eq to (a asc nulls last);
+create index idx_desc_3 on t1 (a desc nulls last) include (c);
+create index idx_asc_nulls_first on t1 (a nulls first) include(c,b); -- eq to (a asc nulls first);
+create index idx_asc_nulls_last on t1 (a nulls last);                -- eq to (a asc nulls last);
 \d+ t1
 insert into t1 values (1, 2, 3), (null, 5, 6), (7, 8, 9);
 insert into t1 values (null, 11, 12), (13, 14, 15), (null, 17, 18);
