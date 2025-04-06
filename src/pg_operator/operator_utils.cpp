@@ -35,7 +35,7 @@ ItemExprPtr OperatorUtils::PexprScalarConstBool(bool value, bool is_null) {
 
 // if predicate is True return logical expression, otherwise return a new select node
 OperatorNodePtr OperatorUtils::PexprSafeSelect(OperatorNodePtr pexpr_logical, const ItemExprPtr &pexpr_pred) {
-  if (FScalarConstTrue(pexpr_pred)) {
+  if (ConstIsTrue(pexpr_pred)) {
     // caller must have add-refed the predicate before coming here
     return pexpr_logical;
   }
@@ -43,36 +43,9 @@ OperatorNodePtr OperatorUtils::PexprSafeSelect(OperatorNodePtr pexpr_logical, co
   return MakeOperatorNode(std::make_shared<LogicalFilter>(pexpr_pred), {pexpr_logical});
 }
 
-// check if the expression is a scalar boolean const
-bool FScalarConstBool(const ItemExprPtr &pexpr, bool value) {
-  if (ExpressionKind::Const == pexpr->kind) {
-    auto *cvalue = pexpr->Cast<ItemConst>().value;
-    if (BOOLOID == cvalue->consttype) {
-      return !cvalue->constisnull && (bool)cvalue->constvalue == value;
-    }
-  }
-
-  return false;
-}
-
-// checks to see if the expression is a scalar const TRUE
-bool OperatorUtils::FScalarConstTrue(const ItemExprPtr &pexpr) {
-  return FScalarConstBool(pexpr, true);
-}
-
-// checks to see if the expression is a scalar const FALSE
-bool OperatorUtils::FScalarConstFalse(const ItemExprPtr &pexpr) {
-  return FScalarConstBool(pexpr, false);
-}
-
-// is the given expression a scalar bool op of the passed type?
-bool OperatorUtils::FScalarBoolOp(const ItemExprPtr &pexpr, BoolExprType eboolop) {
-  return ExpressionKind::BoolExpr == pexpr->kind && eboolop == pexpr->Cast<ItemBoolExpr>().boolop;
-}
-
 // recursively collect conjuncts
 void CollectConjuncts(const ItemExprPtr &pexpr, ExprArray &pdrgpexpr) {
-  if (OperatorUtils::FAnd(pexpr)) {
+  if (IsAndExpr(pexpr)) {
     for (const auto &arg : pexpr->GetChildren())
       CollectConjuncts(arg, pdrgpexpr);
   } else {
@@ -91,15 +64,13 @@ ExprArray OperatorUtils::PdrgpexprConjuncts(const ItemExprPtr &pexpr) {
 
 // check if a conjunct/disjunct can be skipped
 bool FSkippable(const ItemExprPtr &pexpr, bool f_conjunction) {
-  return ((f_conjunction && OperatorUtils::FScalarConstTrue(pexpr)) ||
-          (!f_conjunction && OperatorUtils::FScalarConstFalse(pexpr)));
+  return ((f_conjunction && ConstIsTrue(pexpr)) || (!f_conjunction && ConstIsFalse(pexpr)));
 }
 
 // check if a conjunction/disjunction can be reduced to a constant
 // True/False based on the given conjunct/disjunct
 bool FReducible(const ItemExprPtr &pexpr, bool f_conjunction) {
-  return ((f_conjunction && OperatorUtils::FScalarConstFalse(pexpr)) ||
-          (!f_conjunction && OperatorUtils::FScalarConstTrue(pexpr)));
+  return ((f_conjunction && ConstIsFalse(pexpr)) || (!f_conjunction && ConstIsTrue(pexpr)));
 }
 
 // create conjunction/disjunction from array of components; Takes ownership over the given array of expressions
@@ -175,7 +146,7 @@ ItemExprPtr OperatorUtils::PexprConjunction(const ItemExprPtr &pexpr_one, const 
 
 // is the given expression in the form (expr Is NOT DISTINCT FROM expr)
 bool OperatorUtils::FINDF(const ItemExprPtr &pexpr) {
-  if (FNot(pexpr)) {
+  if (IsNotExpr(pexpr)) {
     return pexpr->GetChild(0)->kind == ExpressionKind::IsDistinctFrom;
   }
   return false;

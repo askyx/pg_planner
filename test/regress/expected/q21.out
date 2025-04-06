@@ -87,8 +87,11 @@ explain verbose :query
                                  ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
                                        Output: supplier.s_suppkey, l1.l_commitdate, l1.l_receiptdate, supplier.s_nationkey, supplier.s_name, l1.l_orderkey, l1.l_suppkey
                                        Join Filter: true
-                                       ->  Index Scan using idx_supplier_nation_key on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                                       ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
                                              Output: supplier.s_name, supplier.s_nationkey, supplier.s_suppkey
+                                             Sort Key: supplier.s_name
+                                             ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                                                   Output: supplier.s_name, supplier.s_nationkey, supplier.s_suppkey
                                        ->  Seq Scan on public.lineitem l1  (cost=0.00..100.00 rows=1000 width=8)
                                              Output: l1.l_commitdate, l1.l_receiptdate, l1.l_orderkey, l1.l_suppkey
                                  ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
@@ -104,7 +107,7 @@ explain verbose :query
                        Output: l3.l_orderkey
                        Filter: ((l3.l_orderkey = l1.l_orderkey) AND (l3.l_suppkey <> l1.l_suppkey) AND (l3.l_receiptdate > l3.l_commitdate))
  Optimizer: PGP
-(37 rows)
+(40 rows)
 
 :query
  s_name | numwait 

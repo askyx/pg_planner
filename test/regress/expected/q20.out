@@ -67,8 +67,11 @@ explain verbose :query
    ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
          Output: supplier.s_address, supplier.s_name, supplier.s_suppkey
          Join Filter: (supplier.s_nationkey = nation.n_nationkey)
-         ->  Index Scan using idx_supplier_nation_key on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+         ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
                Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey
+               Sort Key: supplier.s_name
+               ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
+                     Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey
          ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
                Output: nation.n_nationkey
                Filter: (nation.n_name = 'CANADA'::bpchar)
@@ -92,7 +95,7 @@ explain verbose :query
                          Output: lineitem.l_quantity
                          Filter: ((lineitem.l_partkey = partsupp.ps_partkey) AND (lineitem.l_suppkey = partsupp.ps_suppkey) AND (lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date))
  Optimizer: PGP
-(31 rows)
+(34 rows)
 
 :query
  s_name | s_address 

@@ -65,3 +65,15 @@ select * from t1 order by a asc nulls first;
 select * from t1 order by a asc nulls last;
 select * from t1 order by a nulls first;
 select * from t1 order by a nulls last;
+
+
+
+
+drop table if exists t1;
+create table t1 (a int, b int, c int, d int, e boolean);
+
+create index idxx1 on t1 (a, b);
+create index idxx2 on t1 (e);
+
+explain select * from t1 where a = 1 and b = 2;
+explain select * from t1 where e;

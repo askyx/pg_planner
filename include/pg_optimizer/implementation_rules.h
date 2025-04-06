@@ -1,9 +1,14 @@
 #pragma once
 
+#include <utility>
+
+#include "pg_operator/item_expr.h"
 #include "pg_operator/operator_node.h"
 #include "pg_optimizer/rule.h"
 
 namespace pgp {
+
+struct IndexInfo;
 
 class Get2TableScan : public Rule {
  public:
@@ -19,6 +24,9 @@ class Get2IndexScan : public Rule {
   bool Check(GroupExpression *gexpr) const override;
 
   void Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr, OptimizationContext *context) const override;
+
+  std::pair<ExprArray, ExprArray> ExtractIndexPredicates(const ExprArray &predicates,
+                                                         const IndexInfo *index_info) const;
 };
 
 class ImplementLimit : public Rule {

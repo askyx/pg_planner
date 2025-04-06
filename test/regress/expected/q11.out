@@ -56,7 +56,7 @@ explain verbose :query
          ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
                Output: partsupp.ps_supplycost, partsupp.ps_availqty, supplier.s_nationkey, partsupp.ps_partkey
                Join Filter: (partsupp.ps_suppkey = supplier.s_suppkey)
-               ->  Index Scan using idx_partsupp_suppkey on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
+               ->  Index Scan using idx_partsupp_partkey on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
                      Output: partsupp.ps_partkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_suppkey
                ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
                      Output: supplier.s_suppkey, supplier.s_nationkey

@@ -41,6 +41,17 @@ ScanDirection IndexInfo::GetScanDirection(const std::shared_ptr<OrderSpec> &orde
   return NoMovementScanDirection;
 }
 
+std::shared_ptr<OrderSpec> IndexInfo::ConstructOrderSpec() const {
+  auto order_spec = std::make_shared<OrderSpec>();
+  for (auto [colref, opfamily, optype, reverse_sort, null_first] :
+       std::views::zip(index_cols, sortopfamily, opcintype, reverse_sort, null_first)) {
+    auto sortop =
+        get_opfamily_member(opfamily, optype, optype, reverse_sort ? BTGreaterStrategyNumber : BTLessStrategyNumber);
+    order_spec->AddSortElement({sortop, colref, null_first});
+  }
+  return order_spec;
+}
+
 std::string IndexInfo::ToString() const {
   std::string result = "index: " + std::to_string(index);
   result += " relam: " + std::to_string(relam);

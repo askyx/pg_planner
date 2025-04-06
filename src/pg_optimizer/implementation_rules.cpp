@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "common/exception.h"
 #include "common/macros.h"
 #include "pg_catalog/relation_info.h"
 #include "pg_operator/item_expr.h"
@@ -19,6 +20,7 @@
 #include "pg_optimizer/rule.h"
 
 extern "C" {
+#include <catalog/pg_am.h>
 #include <nodes/nodes.h>
 }
 
@@ -46,6 +48,71 @@ bool Get2IndexScan::Check(GroupExpression *gexpr) const {
   return !get.relation_info->index_list.empty();
 }
 
+std::pair<ExprArray, ExprArray> Get2IndexScan::ExtractIndexPredicates(const ExprArray &predicates,
+                                                                      const IndexInfo *index_info) const {
+  ExprArray match_clause;
+  ExprArray non_match_clause;
+  for (const auto &predicate : predicates) {
+    auto col_used = predicate->DeriveUsedColumns();
+    /*
+     index(a, b)
+      1. a = c  x
+      2. a = b  maybe index scan , but pg not, test which is faster
+      3. a = 5
+    */
+    if (!col_used.empty() && ContainsAll(ColRefArrayToSet(index_info->index_cols), col_used)) {
+      // if is boolean type and `where a`, transform to `a = true`, `not a` to `a = false`
+      // `where a is true` -> `a = true`
+      // TODO: what if is a expr `where a | false` ?
+      if (predicate->NodeIs<ItemIdent>() && predicate->Cast<ItemIdent>().colref->type == BOOLOID) {
+        throw OptException("TODO: support boolean type index scan");
+      }
+      if (IsNotExpr(predicate)) {
+        // TODO: support boolean type index scan
+        throw OptException("TODO: support boolean type index scan");
+      }
+
+      // `x=y`
+      // TODO: function index support
+      if (predicate->NodeIs<ItemOpExpr>()) {
+        if (predicate->children.size() < 2)
+          non_match_clause.emplace_back(predicate);
+        else {
+          const auto &op_expr = predicate->Cast<ItemOpExpr>();
+          const auto &left_op = op_expr.GetChild(0);
+          const auto &right_op = op_expr.GetChild(1);
+          bool matched = false;
+          if (left_op->NodeIs<ItemIdent>()) {
+            const auto &left_col = left_op->Cast<ItemIdent>();
+            for (const auto *index_col : index_info->index_cols) {
+              if (*left_col.colref == *index_col) {
+                match_clause.emplace_back(predicate);
+                matched = true;
+                break;
+              }
+            }
+          } else if (right_op->NodeIs<ItemIdent>()) {
+            const auto &right_col = right_op->Cast<ItemIdent>();
+            for (const auto *index_col : index_info->index_cols) {
+              if (*right_col.colref == *index_col) {
+                match_clause.emplace_back(predicate);
+                matched = true;
+                break;
+              }
+            }
+          }
+
+          if (!matched)
+            non_match_clause.emplace_back(predicate);
+        }
+      }
+    } else {
+      non_match_clause.emplace_back(predicate);
+    }
+  }
+  return {match_clause, non_match_clause};
+}
+
 // TODO: support more index type, check create_index_paths for more info
 // 1. btree   sorted index
 // 2. hash    eq index
@@ -59,30 +126,64 @@ void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
   const auto &index_list = get.relation_info->index_list;
   auto sort = context->GetRequiredProperties()->GetPropertyOfType(PropertyType::SORT);
   // 1. if no condition, check required sort property for btree index
+  std::shared_ptr<OrderSpec> order_spec = nullptr;
   if (sort) {
     const auto *sort_prop = sort->As<PropertySort>();
-    for (auto index : index_list) {
-      auto path_key = index.GetScanDirection(sort_prop->GetSortSpec());
-      // TODO: get lower cost path
-      // index (a, b), index(a) select order by (a)
-      //  shoulde choose index (a)
-      //  INDEX: create index tx on ta(a desc nulls first)
-      // TODO: pg support define one index for multiple time, only choose one index for one time
-      if (path_key != NoMovementScanDirection) {
-        const auto &index_cols = index.GetIndexOutCols();
-        const auto &output = pexpr->DeriveOutputColumns();
-        OLOG("index def: {}\noutput: {}\n", ColRefContainerToString(index_cols), ColRefContainerToString(output));
-        if (ContainsAll(index_cols, output))
-          pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
-              get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
-        else
-          pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
-              get.table_desc, get.relation_info, get.filter, index.index, path_key, sort_prop->GetSortSpec())));
+    order_spec = sort_prop->GetSortSpec();
+    for (const auto &index : index_list) {
+      // sort only support btree index
+      if (index.relam == BTREE_AM_OID &&
+          ColRefSetIntersects(order_spec->GetUsedColumns(), ColRefArrayToSet(index.index_cols))) {
+        auto path_key = index.GetScanDirection(order_spec);
+        // TODO: get lower cost path
+        // index (a, b), index(a) select order by (a)
+        //  shoulde choose index (a)
+        //  INDEX: create index tx on ta(a desc nulls first)
+        // TODO: pg support define one index for multiple time, only choose one index for one time
+        if (path_key != NoMovementScanDirection) {
+          const auto &index_cols = index.GetIndexOutCols();
+          const auto &output = pexpr->DeriveOutputColumns();
+          auto order = index.ConstructOrderSpec();
+          OLOG("index def: {}\noutput: {}\n", ColRefContainerToString(index_cols), ColRefContainerToString(output));
+          if (ContainsAll(index_cols, output))
+            pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
+                get.table_desc, get.relation_info, get.filter, index.index, path_key, order, nullptr)));
+          else
+            pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
+                get.table_desc, get.relation_info, get.filter, index.index, path_key, order, nullptr)));
+        }
       }
     }
   }
 
   // 2. if has condition, check if it can be pushed down to index
+  if (get.filter && false) {
+    for (const auto &index : index_list) {
+      ScanDirection scan_direction = NoMovementScanDirection;
+      if (index.relam == BTREE_AM_OID && order_spec)
+        scan_direction = index.GetScanDirection(order_spec);
+      // support more expression type and index type
+      // 1. distrubuted condition into match and non-match part
+      auto condition_array = OperatorUtils::PdrgpexprConjuncts(get.filter);
+      auto [match_clause, non_match_clause] = ExtractIndexPredicates(condition_array, &index);
+      if (match_clause.empty())
+        continue;
+
+      const auto &index_cols = index.GetIndexOutCols();
+      const auto &output = pexpr->DeriveOutputColumns();
+      if (ContainsAll(index_cols, output))
+        pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
+            get.table_desc, get.relation_info, OperatorUtils::PexprConjunction(non_match_clause), index.index,
+            scan_direction, order_spec, OperatorUtils::PexprConjunction(match_clause))));
+      else
+        pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
+            get.table_desc, get.relation_info, OperatorUtils::PexprConjunction(non_match_clause), index.index,
+            scan_direction, order_spec, OperatorUtils::PexprConjunction(match_clause))));
+
+      // 2. push match part to index
+      // 3. push non-match part to filter
+    }
+  }
 }
 
 ImplementLimit::ImplementLimit() {

@@ -284,7 +284,7 @@ void OptimizeExpressionCostWithEnforcedProperty::Execute() {
             break;
           }
 
-          GetMemo().InsertExpression(nullptr, enforced_expr, group_expr_->GetGroup(), true);
+          enforced_expr = GetMemo().InsertExpression(nullptr, enforced_expr, group_expr_->GetGroup(), true);
 
           // Extend the output properties after enforcement
           auto pre_output_prop_set = output_prop->Copy();

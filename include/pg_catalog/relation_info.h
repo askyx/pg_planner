@@ -24,6 +24,8 @@ struct IndexInfo {
 
   ScanDirection GetScanDirection(const std::shared_ptr<OrderSpec> &order_spec) const;
 
+  std::shared_ptr<OrderSpec> ConstructOrderSpec() const;
+
   ColRefSet GetIndexOutCols() const {
     ColRefSetWapper result{index_cols};
     result.AddColRef(index_include);

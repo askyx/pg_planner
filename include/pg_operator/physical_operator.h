@@ -69,12 +69,15 @@ class PhysicalIndexScan : public PhysicalScan {
 
   std::shared_ptr<OrderSpec> order_spec;
 
+  ItemExprPtr index_cond;
+
   PhysicalIndexScan(RangeTblEntry *table_desc, RelationInfoPtr relation_info, ItemExprPtr filter, Oid index_oid,
-                    ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec)
+                    ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec, ItemExprPtr index_cond)
       : PhysicalScan(table_desc, std::move(relation_info), std::move(filter)),
         index_id(index_oid),
         scan_direction(scan_direction),
-        order_spec(std::move(order_spec)) {
+        order_spec(std::move(order_spec)),
+        index_cond(std::move(index_cond)) {
     kind = OperatorType::PhysicalIndexScan;
   }
 
@@ -88,9 +91,9 @@ class PhysicalIndexOnlyScan : public PhysicalIndexScan {
   constexpr static OperatorType TYPE = OperatorType::PhysicalIndexOnlyScan;
 
   PhysicalIndexOnlyScan(RangeTblEntry *table_desc, RelationInfoPtr relation_info, ItemExprPtr filter, Oid index_oid,
-                        ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec)
+                        ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec, ItemExprPtr index_cond)
       : PhysicalIndexScan(table_desc, std::move(relation_info), std::move(filter), index_oid, scan_direction,
-                          std::move(order_spec)) {
+                          std::move(order_spec), std::move(index_cond)) {
     kind = OperatorType::PhysicalIndexOnlyScan;
   }
 };
