@@ -22,7 +22,7 @@ GroupExpression *OptimizerContext::MakeGroupExpression(const OperatorNodePtr &no
       auto *gexpr = MakeGroupExpression(child);
 
       // Insert into the memo (this allows for duplicate detection)
-      auto *mexpr = memo_.InsertExpression(child, gexpr, false);
+      auto *mexpr = memo.InsertExpression(child, gexpr, false);
       if (mexpr == nullptr) {
         // Delete if need to (see InsertExpression spec)
         child_groups.push_back(gexpr->GetGroup());

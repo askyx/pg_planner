@@ -11,7 +11,7 @@ namespace pgp {
 
 class BindingIterator {
  public:
-  explicit BindingIterator(const Memo &memo) : memo_(memo) {}
+  explicit BindingIterator(const Memo &memo) : memo(memo) {}
 
   virtual ~BindingIterator() = default;
 
@@ -20,7 +20,7 @@ class BindingIterator {
   virtual OperatorNodePtr Next() = 0;
 
  protected:
-  const Memo &memo_;
+  const Memo &memo;
 };
 
 /**

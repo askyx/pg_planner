@@ -67,11 +67,8 @@ explain verbose :query
    ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
          Output: supplier.s_phone, supplier.s_address, (sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)))), supplier.s_name, supplier.s_suppkey
          Join Filter: (supplier.s_suppkey = lineitem.l_suppkey)
-         ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+         ->  Index Scan using supplier_pkey on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
                Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_phone
-               Sort Key: supplier.s_suppkey COLLATE "default"
-               ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
-                     Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_phone
          ->  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
                Output: lineitem.l_suppkey, sum((lineitem.l_extendedprice * ("numeric"(1) - lineitem.l_discount)))
                Group Key: lineitem.l_suppkey
@@ -94,7 +91,7 @@ explain verbose :query
                              Output: lineitem_1.l_suppkey, lineitem_1.l_extendedprice, lineitem_1.l_discount
                              Filter: ((lineitem_1.l_shipdate >= '01-01-1996'::date) AND (lineitem_1.l_shipdate < '04-01-1996'::date))
  Optimizer: PGP
-(33 rows)
+(30 rows)
 
 :query
  s_suppkey | s_name | s_address | s_phone | total_revenue 

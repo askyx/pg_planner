@@ -1,13 +1,14 @@
 #pragma once
 
-#include <unordered_map>
 #include <utility>
 
+#include "pg_catalog/relation_info.h"
 #include "pg_operator/item_expr.h"
 #include "pg_operator/operator.h"
 #include "pg_operator/operator_node.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/order_spec.h"
+#include "postgres_ext.h"
 
 extern "C" {
 #include <nodes/nodes.h>
@@ -43,19 +44,58 @@ class PhysicalScan : public PhysicalOperator {
 
   RangeTblEntry *table_desc;
 
-  ColRefArray output_columns;
+  RelationInfoPtr relation_info;
 
   ItemExprPtr filter;
 
-  PhysicalScan(RangeTblEntry *table_desc, ColRefArray output_columns, ItemExprPtr filter)
+  PhysicalScan(RangeTblEntry *table_desc, RelationInfoPtr relation_info, ItemExprPtr filter)
       : PhysicalOperator(OperatorType::PhysicalScan),
         table_desc(table_desc),
-        output_columns(std::move(output_columns)),
+        relation_info(std::move(relation_info)),
         filter(std::move(filter)) {}
 
   hash_t Hash() const override;
 
   bool operator==(const Operator &other) const override;
+};
+
+class PhysicalIndexScan : public PhysicalScan {
+ public:
+  constexpr static OperatorType TYPE = OperatorType::PhysicalIndexScan;
+
+  Oid index_id;
+
+  ScanDirection scan_direction;
+
+  std::shared_ptr<OrderSpec> order_spec;
+
+  ItemExprPtr index_cond;
+
+  PhysicalIndexScan(RangeTblEntry *table_desc, RelationInfoPtr relation_info, ItemExprPtr filter, Oid index_oid,
+                    ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec, ItemExprPtr index_cond)
+      : PhysicalScan(table_desc, std::move(relation_info), std::move(filter)),
+        index_id(index_oid),
+        scan_direction(scan_direction),
+        order_spec(std::move(order_spec)),
+        index_cond(std::move(index_cond)) {
+    kind = OperatorType::PhysicalIndexScan;
+  }
+
+  hash_t Hash() const override;
+
+  bool operator==(const Operator &other) const override;
+};
+
+class PhysicalIndexOnlyScan : public PhysicalIndexScan {
+ public:
+  constexpr static OperatorType TYPE = OperatorType::PhysicalIndexOnlyScan;
+
+  PhysicalIndexOnlyScan(RangeTblEntry *table_desc, RelationInfoPtr relation_info, ItemExprPtr filter, Oid index_oid,
+                        ScanDirection scan_direction, std::shared_ptr<OrderSpec> order_spec, ItemExprPtr index_cond)
+      : PhysicalIndexScan(table_desc, std::move(relation_info), std::move(filter), index_oid, scan_direction,
+                          std::move(order_spec), std::move(index_cond)) {
+    kind = OperatorType::PhysicalIndexOnlyScan;
+  }
 };
 
 class PhysicalLimit : public PhysicalOperator {

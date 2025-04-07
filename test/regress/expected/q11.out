@@ -45,8 +45,8 @@ select transform_query(query) from tpch_queries(11);
 
 set pg_planner.enable_planner to on;
 explain verbose :query
-                                                        QUERY PLAN                                                        
---------------------------------------------------------------------------------------------------------------------------
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
  GroupAggregate  (cost=0.00..100.00 rows=1000 width=8)
    Output: partsupp.ps_partkey, sum((partsupp.ps_supplycost * "numeric"(partsupp.ps_availqty)))
    Group Key: partsupp.ps_partkey
@@ -56,18 +56,15 @@ explain verbose :query
          ->  Nested Loop  (cost=0.00..100.00 rows=1000 width=8)
                Output: partsupp.ps_supplycost, partsupp.ps_availqty, supplier.s_nationkey, partsupp.ps_partkey
                Join Filter: (partsupp.ps_suppkey = supplier.s_suppkey)
-               ->  Sort  (cost=0.00..100.00 rows=1000 width=8)
+               ->  Index Scan using idx_partsupp_partkey on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
                      Output: partsupp.ps_partkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_suppkey
-                     Sort Key: partsupp.ps_partkey COLLATE "default"
-                     ->  Seq Scan on public.partsupp  (cost=0.00..100.00 rows=1000 width=8)
-                           Output: partsupp.ps_partkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_suppkey
                ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
                      Output: supplier.s_suppkey, supplier.s_nationkey
          ->  Seq Scan on public.nation  (cost=0.00..100.00 rows=1000 width=8)
                Output: nation.n_nationkey
                Filter: (nation.n_name = 'GERMANY'::bpchar)
  Optimizer: PGP
-(20 rows)
+(17 rows)
 
 :query
  ps_partkey | value 

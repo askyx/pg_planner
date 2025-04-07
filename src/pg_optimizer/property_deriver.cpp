@@ -108,6 +108,8 @@ ColRef2DArray PropertiesDriver::PcrsRequired(GroupExpression *gexpr, const ColRe
 
     case OperatorType::PhysicalLimit:
     case OperatorType::PhysicalScan:
+    case OperatorType::PhysicalIndexScan:
+    case OperatorType::PhysicalIndexOnlyScan:
     case OperatorType::PhysicalSort: {
       return {pcrs_required};
     }
@@ -183,7 +185,7 @@ ColRefSet PropertiesDriver::DeriveOutputColumns(OperatorNode *expr) {
     }
 
     case OperatorType::LogicalGet: {
-      return ColRefArrayToSet(logical_operator->Cast<LogicalGet>().output_columns);
+      return ColRefArrayToSet(logical_operator->Cast<LogicalGet>().relation_info->output_columns);
     }
 
     case OperatorType::LogicalApply: {
@@ -590,7 +592,7 @@ ColRefSet PropertiesDriver::DeriveOuterReferences(OperatorNode *expr) {
       const auto &logical_get = logical_operator->Cast<LogicalGet>();
       ColRefSet outer_refs;
 
-      ColRefSet pcrs_output = ColRefArrayToSet(logical_get.output_columns);
+      ColRefSet pcrs_output = ColRefArrayToSet(logical_get.relation_info->output_columns);
 
       if (logical_get.filter != nullptr) {
         ColRefSet pcrs_used = logical_get.filter->DeriveUsedColumns();

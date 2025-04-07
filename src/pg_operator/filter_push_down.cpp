@@ -85,7 +85,7 @@ OperatorNodePtr PushThrux(OperatorNodePtr pexpr_logical, const ItemExprPtr &pexp
     case OperatorType::LogicalGet: {
       auto &get = pexpr_logical->Cast<LogicalGet>();
       auto filter = OperatorUtils::PexprConjunction(get.filter, pexpr_conj);
-      if (!OperatorUtils::FScalarConstTrue(filter))
+      if (!ConstIsTrue(filter))
         get.filter = filter;
       return pexpr_logical;
     }

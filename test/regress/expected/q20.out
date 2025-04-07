@@ -59,8 +59,8 @@ select transform_query(query) from tpch_queries(20);
 
 set pg_planner.enable_planner to on;
 explain verbose :query
-                                                                                                         QUERY PLAN                                                                                                         
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
  Result  (cost=0.00..0.00 rows=0 width=0)
    Output: supplier.s_name, supplier.s_address
    Filter: (ANY (supplier.s_suppkey = (SubPlan 3).col1))
@@ -91,11 +91,12 @@ explain verbose :query
            SubPlan 2
              ->  Aggregate  (cost=0.00..100.00 rows=1000 width=8)
                    Output: (0.5 * sum(lineitem.l_quantity))
-                   ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                   ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
                          Output: lineitem.l_quantity
-                         Filter: ((lineitem.l_partkey = partsupp.ps_partkey) AND (lineitem.l_suppkey = partsupp.ps_suppkey) AND (lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date))
+                         Index Cond: ((lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date))
+                         Filter: ((lineitem.l_partkey = partsupp.ps_partkey) AND (lineitem.l_suppkey = partsupp.ps_suppkey))
  Optimizer: PGP
-(34 rows)
+(35 rows)
 
 :query
  s_name | s_address 

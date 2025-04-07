@@ -19,8 +19,9 @@ namespace pgp {
  * 如果 node 本身自己含有同类属性，则输出是 requirements， 输入时 node 的自身要求的属性，例如子查询中的
  * limit 中的 order 属性
  *
- * 对于某些会提供额外列的 node， 例如 project，则判断
- *
+ * requirements 还有一层含义判断时候需要下层提供指定类型的属性，例如
+ index scan，本身自带 order 属性，但是如果没有要求，则不需要计算 order 属性，否则输出之后，后续无法从 empty requirement
+ 获得 indexscna
  */
 std::vector<std::pair<std::shared_ptr<PropertySet>, std::vector<std::shared_ptr<PropertySet>>>>
 ChildPropertyDeriver::GetProperties(Memo *memo, const std::shared_ptr<PropertySet> &requirements,
@@ -30,7 +31,28 @@ ChildPropertyDeriver::GetProperties(Memo *memo, const std::shared_ptr<PropertySe
     case OperatorType::PhysicalScan:
       return {{std::make_shared<PropertySet>(), std::vector<std::shared_ptr<PropertySet>>{}}};
 
-    // limit 提供 order 属性
+    case pgp::OperatorType::PhysicalIndexScan: {
+      const auto &index_scan = op->Cast<PhysicalIndexScan>();
+      auto property_set = std::make_shared<PropertySet>();
+      for (const auto &prop : requirements->Properties()) {
+        if (prop->Type() == PropertyType::SORT)
+          property_set->AddProperty(std::make_shared<PropertySort>(index_scan.order_spec->Copy()));
+      }
+      return {{property_set, {}}};
+    }
+
+    case pgp::OperatorType::PhysicalIndexOnlyScan: {
+      const auto &index_scan = op->Cast<PhysicalIndexOnlyScan>();
+      auto property_set = std::make_shared<PropertySet>();
+      for (const auto &prop : requirements->Properties()) {
+        if (prop->Type() == PropertyType::SORT)
+          property_set->AddProperty(std::make_shared<PropertySort>(index_scan.order_spec->Copy()));
+      }
+      return {{property_set, {}}};
+    }
+
+    // limit 提供 order 属性, 输出是 req，后续memo中可以更具req获得查找expr，limit 的req是自己的内禀属性，limit
+    // 没有被优化掉表示limit内的order 起码是有效的
     case OperatorType::PhysicalLimit: {
       const auto &limit = op->Cast<PhysicalLimit>();
 

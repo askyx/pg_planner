@@ -38,7 +38,7 @@ struct RemoveEmptySelectRule {
   bool Match(OperatorNodePtr expr) const {
     if (expr->content->kind == OperatorType::LogicalFilter) {
       const auto &select = expr->Cast<LogicalFilter>();
-      return OperatorUtils::FScalarConstTrue(select.filter);
+      return ConstIsTrue(select.filter);
     }
     return false;
   }

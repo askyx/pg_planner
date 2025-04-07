@@ -25,13 +25,13 @@ select transform_query(query) from tpch_queries(6);
 
 set pg_planner.enable_planner to on;
 explain verbose :query
-                                                                                                         QUERY PLAN                                                                                                         
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                           QUERY PLAN                                                                                                           
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Aggregate  (cost=0.00..100.00 rows=1000 width=8)
    Output: sum((l_extendedprice * l_discount))
-   ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+   ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
          Output: l_discount, l_extendedprice
-         Filter: ((lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date) AND (lineitem.l_discount >= 0.05) AND (lineitem.l_discount <= 0.07) AND (lineitem.l_quantity < "numeric"(24)))
+         Index Cond: ((lineitem.l_shipdate >= '01-01-1994'::date) AND (lineitem.l_shipdate < '01-01-1995'::date) AND (lineitem.l_discount >= 0.05) AND (lineitem.l_discount <= 0.07) AND (lineitem.l_quantity < "numeric"(24)))
  Optimizer: PGP
 (6 rows)
 

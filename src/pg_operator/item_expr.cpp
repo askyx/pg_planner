@@ -8,7 +8,6 @@
 #include "pg_optimizer/colref.h"
 
 extern "C" {
-#include "catalog/pg_type_d.h"
 #include "nodes/nodes.h"
 #include "nodes/primnodes.h"
 #include "postgres_ext.h"

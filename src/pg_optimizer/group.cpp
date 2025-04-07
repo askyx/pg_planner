@@ -2,6 +2,7 @@
 
 #include "pg_optimizer/group.h"
 
+#include "common/exception.h"
 #include "pg_optimizer/group_expression.h"
 #include "pg_optimizer/optimization_context.h"
 
@@ -39,6 +40,7 @@ GroupExpression *Group::GetBestExpression(const std::shared_ptr<PropertySet> &pr
 }
 
 bool Group::SetExpressionCost(GroupExpression *expr, double cost, const std::shared_ptr<PropertySet> &properties) {
+  PGP_ASSERT(expr->Pop()->Physical(), "Physical expression expected");
   auto it = lowest_cost_expressions_.find(properties);
   if (it == lowest_cost_expressions_.end()) {
     // not exist so insert

@@ -2,22 +2,28 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
-#include "nodes/pg_list.h"
+#include "common/defer.h"
+#include "common/macros.h"
+#include "pg_optimizer/colref.h"
+#include "pg_optimizer/optimizer_context.h"
 
 extern "C" {
+#include <access/genam.h>
 #include <access/htup_details.h>
 #include <catalog/pg_aggregate.h>
 #include <catalog/pg_am_d.h>
+#include <nodes/pg_list.h>
 #include <parser/parse_coerce.h>
 #include <parser/parse_type.h>
 #include <postgres_ext.h>
+#include <storage/lockdefs.h>
 #include <utils/lsyscache.h>
 #include <utils/rel.h>
 #include <utils/syscache.h>
-
-#include "access/table.h"
 }
 
 namespace pgp {
@@ -99,16 +105,86 @@ Oid Catalog::GetAggTranstype(Oid aggfnoid) {
   return result;
 }
 
-std::vector<Oid> Catalog::RelationGetIndexList(Oid rel_oid) {
-  auto *relation = table_open(rel_oid, NoLock);
-  auto *indexlist = ::RelationGetIndexList(relation);
-  std::vector<Oid> index_oids;
-  foreach_oid(index, indexlist) index_oids.emplace_back(index);
+// TODO: check for get_relation_info
+// TODO: system cols
+RelationInfoPtr Catalog::GetRelationInfo(Oid rel_oid) {
+  auto *rel = RelationIdGetRelation(rel_oid);
+  auto rel_close = pgp::ScopedDefer{[] {}, [&]() { RelationClose(rel); }};
 
-  table_close(relation, NoLock);
-  list_free(indexlist);
+  RelationInfoPtr relation_info = std::make_shared<RelationInfo>();
 
-  return index_oids;
+  auto *optimizer_context = OptimizerContext::GetOptimizerContextInstance();
+
+  ColRefArray output_columns;
+  for (int i = 0; i < RelationGetNumberOfAttributes(rel); i++) {
+    Form_pg_attribute att = TupleDescAttr(rel->rd_att, i);
+    auto item_width = get_attavgwidth(RelationGetRelid(rel), (AttrNumber)i);
+    if (item_width <= 0) {
+      item_width = get_typavgwidth(att->atttypid, att->atttypmod);
+    }
+    ColRef *colref = optimizer_context->column_factory.PcrCreate(att->atttypid, att->atttypmod, false, true,
+                                                                 NameStr(att->attname), item_width);
+    colref->attnum = att->attnum;
+    output_columns.emplace_back(colref);
+  }
+
+  // TODO: check index is available
+  // TODO: expression index
+  // TODO: partition index
+  // TODO: more index types
+  std::unordered_map<Oid, IndexInfo> index_info;
+  if (auto *indexoidlist = RelationGetIndexList(rel); indexoidlist) {
+    ColRefArray index_columns;
+    ColRefArray index_include;
+    std::vector<Oid> sortopfamily;
+    std::vector<bool> reverse_sort;
+    std::vector<bool> null_first;
+    foreach_oid(ioid, indexoidlist) {
+      auto *index_rel = index_open(ioid, NoLock);
+      auto index_clos = pgp::ScopedDefer{[] {}, [&]() { index_close(index_rel, NoLock); }};
+      Oid relam = index_rel->rd_rel->relam;
+      auto *index = index_rel->rd_index;
+
+      ColRefArray index_columns;
+      ColRefArray index_include;
+      std::vector<Oid> opcintype(index->indnkeyatts, InvalidOid);
+      std::vector<Oid> sortopfamily(index->indnkeyatts, InvalidOid);
+      std::vector<bool> reverse_sort(index->indnkeyatts, false);
+      std::vector<bool> null_first(index->indnkeyatts, false);
+
+      for (auto i = 0; i < index->indnatts; i++) {
+        // attno indexed from 0
+        auto attno = index->indkey.values[i];
+        if (i < index->indnkeyatts) {
+          index_columns.emplace_back(output_columns[attno - 1]);
+          opcintype[i] = index_rel->rd_opcintype[i];
+          sortopfamily[i] = index_rel->rd_opfamily[i];
+        } else
+          index_include.emplace_back(output_columns[attno - 1]);
+      }
+      if (index_rel->rd_rel->relkind != RELKIND_PARTITIONED_INDEX) {
+        if (relam == BTREE_AM_OID) {
+          for (auto i = 0; i < index->indnkeyatts; i++) {
+            auto opt = index_rel->rd_indoption[i];
+            reverse_sort[i] = (opt & INDOPTION_DESC) != 0;
+            null_first[i] = (opt & INDOPTION_NULLS_FIRST) != 0;
+          }
+        }
+      }
+      index_info.insert({ioid,
+                         {relam, std::move(index_columns), std::move(index_include), std::move(sortopfamily),
+                          std::move(opcintype), std::move(reverse_sort), std::move(null_first)}});
+    }
+  }
+
+  relation_info->output_columns = std::move(output_columns);
+  relation_info->relation_indexes = std::move(index_info);
+
+  OLOG("RelationInfo for rel_oid {}:\n{}", rel_oid, relation_info->ToString());
+
+  optimizer_context->relation_info.insert({rel_oid, relation_info});
+
+  return relation_info;
 }
 
 }  // namespace pgp
