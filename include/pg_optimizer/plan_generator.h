@@ -34,29 +34,44 @@ concept IsPlanDerived = requires() { T::plan; };
 template <typename T>
 concept IsJoinDerived = requires() { T::join; };
 
+enum class FilterHostType {
+  SCAN,
+  JOIN,
+  INDEXSCAN,
+  INDEXONLYSCAN,
+};
+
+/*
+ 生成一个node的时候使用，保存所有需要的上下文
+*/
 struct PlanMeta {
   PlanGenerator &generator;
 
   Plan *plan;
 
+  // child contexts, 用于生成left，right tree以及targetlist
   const std::vector<PlanMeta> &children_metas;
 
+  // targetlist和colrefid的映射，用于上层生成targetlist
   std::unordered_map<uint32_t, TargetEntry *> colid_target_map;
 
+  // 表的基础信息，
   struct {
     bool init{false};
+    bool use_index{false};
     Oid rel_oid;
     Index rte_index;
+    std::unordered_map<uint32_t, AttrNumber> colref_to_index_map;
   } range_table_context;
 
   template <IsScanDerived N, NodeTag T>
-  PlanMeta &GenerateScanNode(int plan_node_id);
+  PlanMeta &GenerateScanNode();
 
   template <IsPlanDerived N, NodeTag T>
-  PlanMeta &GeneratePlanNode(int plan_node_id);
+  PlanMeta &GeneratePlanNode();
 
   template <IsJoinDerived N, NodeTag T>
-  PlanMeta &GenerateJoinNode(int plan_node_id, JoinType join_type);
+  PlanMeta &GenerateJoinNode(JoinType join_type);
 
   PlanMeta &InitRangeTableContext(RangeTblEntry *rte);
 
@@ -69,7 +84,7 @@ struct PlanMeta {
 
   PlanMeta &GenerateIndexTargetList(const ColRefArray &req_cols);
 
-  template <bool join_filter = false>
+  template <FilterHostType FH>
   PlanMeta &GenerateFilter(const ItemExprPtr &filter_node);
 
   PlanMeta &GenerateSubplan(const PhysicalApply &apply);
@@ -77,6 +92,8 @@ struct PlanMeta {
   PlanMeta &SetAggGroupInfo(const PhysicalAgg &agg_node);
 
   PlanMeta &SetSortInfo(const PhysicalSort &sort_node);
+
+  PlanMeta &SetIndexInfo(Oid relid, Oid index);
 
   TargetEntry *GenerateTargetEntry(Expr *expr, AttrNumber resno, const std::string &col_name, uint32_t colid);
 

@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "common/exception.h"
 #include "pg_optimizer/colref.h"
 #include "pg_optimizer/order_spec.h"
 extern "C" {
@@ -13,7 +14,6 @@ extern "C" {
 namespace pgp {
 
 struct IndexInfo {
-  Oid index;
   Oid relam;
   ColRefArray index_cols;
   ColRefArray index_include;
@@ -37,7 +37,12 @@ struct IndexInfo {
 
 struct RelationInfo {
   ColRefArray output_columns;
-  std::vector<IndexInfo> index_list;
+  std::unordered_map<Oid, IndexInfo> relation_indexes;
+
+  const IndexInfo &GetIndexInfo(Oid index_oid) const {
+    PGP_ASSERT(relation_indexes.contains(index_oid), "index not found");
+    return relation_indexes.at(index_oid);
+  }
 
   std::string ToString() const;
 };

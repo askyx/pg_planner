@@ -74,6 +74,72 @@ create table t1 (a int, b int, c int, d int, e boolean);
 
 create index idxx1 on t1 (a, b);
 create index idxx2 on t1 (e);
+insert into t1 values (1, 2, 3, 4, true), (5, 6, 7, 8, false), (9, 10, 11, 12, true), (13, 14, 15, 16, false);
 
+-- index scan
 explain select * from t1 where a = 1 and b = 2;
+
+-- index scan
+explain select * from t1 order by a;
+explain select * from t1 order by a, b;
+-- Incremental sort
+explain select * from t1 order by a, b, c;
+-- not index scan
+explain select * from t1 order by b, a;
+explain select * from t1 order by b;
+
+explain select * from t1 where a = 1 and b = 2 order by a, b;
+explain select * from t1 where a = 1 and b = 2 order by b, a;
 explain select * from t1 where e;
+
+
+-- index scan
+select * from t1 where a = 1 and b = 2;
+
+-- index scan
+select * from t1 order by a;
+select * from t1 order by a, b;
+-- Incremental sort
+select * from t1 order by a, b, c;
+-- not index scan
+select * from t1 order by b, a;
+select * from t1 order by b;
+
+select * from t1 where a = 1 and b = 2 order by a, b;
+select * from t1 where a = 1 and b = 2 order by b, a;
+select * from t1 where e;
+
+set pg_planner.enable_planner to on;
+
+-- index scan
+explain select * from t1 where a = 1 and b = 2;
+
+-- index scan
+explain select * from t1 order by a;
+explain select * from t1 order by a, b;
+-- Incremental sort
+explain select * from t1 order by a, b, c;
+-- not index scan
+explain select * from t1 order by b, a;
+explain select * from t1 order by b;
+
+explain select * from t1 where a = 1 and b = 2 order by a, b;
+explain select * from t1 where a = 1 and b = 2 order by b, a;
+explain select * from t1 where e;
+
+
+-- index scan
+select * from t1 where a = 1 and b = 2;
+
+-- index scan
+select * from t1 order by a;
+select * from t1 order by a, b;
+-- Incremental sort
+select * from t1 order by a, b, c;
+-- not index scan
+select * from t1 order by b, a;
+select * from t1 order by b;
+
+select * from t1 where a = 1 and b = 2 order by a, b;
+select * from t1 where a = 1 and b = 2 order by b, a;
+select * from t1 where e;

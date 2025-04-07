@@ -58,12 +58,12 @@ explain verbose :query
                      ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
                            Output: customer.c_custkey
                            Filter: (customer.c_mktsegment = 'BUILDING'::bpchar)
-                     ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                     ->  Index Scan using idx_orders_orderdate on public.orders  (cost=0.00..100.00 rows=1000 width=8)
                            Output: orders.o_custkey, orders.o_shippriority, orders.o_orderdate, orders.o_orderkey
-                           Filter: (orders.o_orderdate < '03-15-1995'::date)
-               ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                           Index Cond: (orders.o_orderdate < '03-15-1995'::date)
+               ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
                      Output: lineitem.l_discount, lineitem.l_extendedprice, lineitem.l_orderkey
-                     Filter: (lineitem.l_shipdate > '03-15-1995'::date)
+                     Index Cond: (lineitem.l_shipdate > '03-15-1995'::date)
  Optimizer: PGP
 (21 rows)
 

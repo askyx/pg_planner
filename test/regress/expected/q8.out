@@ -105,9 +105,9 @@ explain verbose :query
                                                                Output: supplier.s_suppkey, supplier.s_nationkey
                                                    ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
                                                          Output: lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_orderkey, lineitem.l_discount, lineitem.l_extendedprice
-                                             ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
+                                             ->  Index Scan using idx_orders_orderdate on public.orders  (cost=0.00..100.00 rows=1000 width=8)
                                                    Output: orders.o_orderdate, orders.o_orderkey, orders.o_custkey
-                                                   Filter: ((orders.o_orderdate >= '01-01-1995'::date) AND (orders.o_orderdate <= '12-31-1996'::date))
+                                                   Index Cond: ((orders.o_orderdate >= '01-01-1995'::date) AND (orders.o_orderdate <= '12-31-1996'::date))
                                        ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)
                                              Output: customer.c_custkey, customer.c_nationkey
                                  ->  Seq Scan on public.nation n1  (cost=0.00..100.00 rows=1000 width=8)

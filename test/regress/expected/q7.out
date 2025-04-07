@@ -90,9 +90,9 @@ explain verbose :query
                                              Join Filter: (supplier.s_suppkey = lineitem.l_suppkey)
                                              ->  Seq Scan on public.supplier  (cost=0.00..100.00 rows=1000 width=8)
                                                    Output: supplier.s_nationkey, supplier.s_suppkey
-                                             ->  Seq Scan on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
+                                             ->  Index Scan using idx_lineitem_shipdate on public.lineitem  (cost=0.00..100.00 rows=1000 width=8)
                                                    Output: lineitem.l_suppkey, lineitem.l_shipdate, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_orderkey
-                                                   Filter: ((lineitem.l_shipdate >= '01-01-1995'::date) AND (lineitem.l_shipdate <= '12-31-1996'::date))
+                                                   Index Cond: ((lineitem.l_shipdate >= '01-01-1995'::date) AND (lineitem.l_shipdate <= '12-31-1996'::date))
                                        ->  Seq Scan on public.orders  (cost=0.00..100.00 rows=1000 width=8)
                                              Output: orders.o_orderkey, orders.o_custkey
                                  ->  Seq Scan on public.customer  (cost=0.00..100.00 rows=1000 width=8)

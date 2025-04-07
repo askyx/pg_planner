@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -131,7 +132,7 @@ RelationInfoPtr Catalog::GetRelationInfo(Oid rel_oid) {
   // TODO: expression index
   // TODO: partition index
   // TODO: more index types
-  std::vector<IndexInfo> index_info;
+  std::unordered_map<Oid, IndexInfo> index_info;
   if (auto *indexoidlist = RelationGetIndexList(rel); indexoidlist) {
     ColRefArray index_columns;
     ColRefArray index_include;
@@ -170,13 +171,14 @@ RelationInfoPtr Catalog::GetRelationInfo(Oid rel_oid) {
           }
         }
       }
-      index_info.emplace_back(ioid, relam, std::move(index_columns), std::move(index_include), std::move(sortopfamily),
-                              std::move(opcintype), std::move(reverse_sort), std::move(null_first));
+      index_info.insert({ioid,
+                         {relam, std::move(index_columns), std::move(index_include), std::move(sortopfamily),
+                          std::move(opcintype), std::move(reverse_sort), std::move(null_first)}});
     }
   }
 
   relation_info->output_columns = std::move(output_columns);
-  relation_info->index_list = std::move(index_info);
+  relation_info->relation_indexes = std::move(index_info);
 
   OLOG("RelationInfo for rel_oid {}:\n{}", rel_oid, relation_info->ToString());
 

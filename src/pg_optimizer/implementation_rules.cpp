@@ -20,6 +20,7 @@
 #include "pg_optimizer/rule.h"
 
 extern "C" {
+#include <access/sdir.h>
 #include <catalog/pg_am.h>
 #include <nodes/nodes.h>
 }
@@ -45,7 +46,7 @@ Get2IndexScan::Get2IndexScan() {
 
 bool Get2IndexScan::Check(GroupExpression *gexpr) const {
   const auto &get = gexpr->Pop()->Cast<LogicalGet>();
-  return !get.relation_info->index_list.empty();
+  return !get.relation_info->relation_indexes.empty();
 }
 
 std::pair<ExprArray, ExprArray> Get2IndexScan::ExtractIndexPredicates(const ExprArray &predicates,
@@ -123,44 +124,18 @@ std::pair<ExprArray, ExprArray> Get2IndexScan::ExtractIndexPredicates(const Expr
 void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &pexpr,
                               OptimizationContext *context) const {
   const auto &get = pexpr->Cast<LogicalGet>();
-  const auto &index_list = get.relation_info->index_list;
-  auto sort = context->GetRequiredProperties()->GetPropertyOfType(PropertyType::SORT);
-  // 1. if no condition, check required sort property for btree index
+  const auto &relation_indexes = get.relation_info->relation_indexes;
+  // 1. get sort property
   std::shared_ptr<OrderSpec> order_spec = nullptr;
-  if (sort) {
-    const auto *sort_prop = sort->As<PropertySort>();
-    order_spec = sort_prop->GetSortSpec();
-    for (const auto &index : index_list) {
-      // sort only support btree index
-      if (index.relam == BTREE_AM_OID &&
-          ColRefSetIntersects(order_spec->GetUsedColumns(), ColRefArrayToSet(index.index_cols))) {
-        auto path_key = index.GetScanDirection(order_spec);
-        // TODO: get lower cost path
-        // index (a, b), index(a) select order by (a)
-        //  shoulde choose index (a)
-        //  INDEX: create index tx on ta(a desc nulls first)
-        // TODO: pg support define one index for multiple time, only choose one index for one time
-        if (path_key != NoMovementScanDirection) {
-          const auto &index_cols = index.GetIndexOutCols();
-          const auto &output = pexpr->DeriveOutputColumns();
-          auto order = index.ConstructOrderSpec();
-          OLOG("index def: {}\noutput: {}\n", ColRefContainerToString(index_cols), ColRefContainerToString(output));
-          if (ContainsAll(index_cols, output))
-            pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
-                get.table_desc, get.relation_info, get.filter, index.index, path_key, order, nullptr)));
-          else
-            pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
-                get.table_desc, get.relation_info, get.filter, index.index, path_key, order, nullptr)));
-        }
-      }
-    }
-  }
+  if (auto sort = context->GetRequiredProperties()->GetPropertyOfType(PropertyType::SORT); sort)
+    order_spec = sort->As<PropertySort>()->GetSortSpec();
 
   // 2. if has condition, check if it can be pushed down to index
-  if (get.filter && false) {
-    for (const auto &index : index_list) {
-      ScanDirection scan_direction = NoMovementScanDirection;
-      if (index.relam == BTREE_AM_OID && order_spec)
+  if (get.filter) {
+    for (const auto &[index_oid, index] : relation_indexes) {
+      ScanDirection scan_direction = ForwardScanDirection;
+      if (index.relam == BTREE_AM_OID && order_spec &&
+          ColRefSetIntersects(order_spec->GetUsedColumns(), ColRefArrayToSet(index.index_cols)))
         scan_direction = index.GetScanDirection(order_spec);
       // support more expression type and index type
       // 1. distrubuted condition into match and non-match part
@@ -171,17 +146,41 @@ void Get2IndexScan::Transform(OperatorNodeArray &pxfres, const OperatorNodePtr &
 
       const auto &index_cols = index.GetIndexOutCols();
       const auto &output = pexpr->DeriveOutputColumns();
+      const auto &order = index.ConstructOrderSpec();
       if (ContainsAll(index_cols, output))
         pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
-            get.table_desc, get.relation_info, OperatorUtils::PexprConjunction(non_match_clause), index.index,
-            scan_direction, order_spec, OperatorUtils::PexprConjunction(match_clause))));
+            get.table_desc, get.relation_info,
+            non_match_clause.empty() ? nullptr : OperatorUtils::PexprConjunction(non_match_clause), index_oid,
+            scan_direction, order, OperatorUtils::PexprConjunction(match_clause))));
       else
         pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
-            get.table_desc, get.relation_info, OperatorUtils::PexprConjunction(non_match_clause), index.index,
-            scan_direction, order_spec, OperatorUtils::PexprConjunction(match_clause))));
-
-      // 2. push match part to index
-      // 3. push non-match part to filter
+            get.table_desc, get.relation_info,
+            non_match_clause.empty() ? nullptr : OperatorUtils::PexprConjunction(non_match_clause), index_oid,
+            scan_direction, order, OperatorUtils::PexprConjunction(match_clause))));
+    }
+  } else if (order_spec) {  // 3. if no condition, check if sort is match
+    for (const auto &[index_oid, index] : relation_indexes) {
+      // sort only support btree index
+      if (index.relam == BTREE_AM_OID &&
+          ColRefSetIntersects(order_spec->GetUsedColumns(), ColRefArrayToSet(index.index_cols))) {
+        // TODO: get lower cost path
+        // index (a, b), index(a) select order by (a)
+        //  shoulde choose index (a)
+        //  INDEX: create index tx on ta(a desc nulls first)
+        // TODO: pg support define one index for multiple time, only choose one index for one time
+        if (auto scan_direction = index.GetScanDirection(order_spec); scan_direction != NoMovementScanDirection) {
+          const auto &index_cols = index.GetIndexOutCols();
+          const auto &output = pexpr->DeriveOutputColumns();
+          const auto &order = index.ConstructOrderSpec();
+          OLOG("index def: {}\noutput: {}\n", ColRefContainerToString(index_cols), ColRefContainerToString(output));
+          if (ContainsAll(index_cols, output))
+            pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexOnlyScan>(
+                get.table_desc, get.relation_info, nullptr, index_oid, scan_direction, order, nullptr)));
+          else
+            pxfres.emplace_back(MakeOperatorNode(std::make_shared<PhysicalIndexScan>(
+                get.table_desc, get.relation_info, nullptr, index_oid, scan_direction, order, nullptr)));
+        }
+      }
     }
   }
 }

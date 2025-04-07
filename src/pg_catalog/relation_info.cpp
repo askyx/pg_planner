@@ -53,7 +53,7 @@ std::shared_ptr<OrderSpec> IndexInfo::ConstructOrderSpec() const {
 }
 
 std::string IndexInfo::ToString() const {
-  std::string result = "index: " + std::to_string(index);
+  std::string result;
   result += " relam: " + std::to_string(relam);
   result += " index_cols: [";
   result += ColRefContainerToString(index_cols);
@@ -88,9 +88,9 @@ std::string RelationInfo::ToString() const {
   std::string result = "output_columns: [";
   result += ColRefContainerToString(output_columns);
   result += "]\n";
-  result += "index_list: [\n";
-  for (const auto &index : index_list) {
-    result += "\t" + index.ToString();
+  result += "relation_indexes: [\n";
+  for (const auto &[oid, index] : relation_indexes) {
+    result += "\t index: " + std::to_string(oid) + " " + index.ToString();
     result += "\n";
   }
   result += "]";
