@@ -74,14 +74,12 @@ jobs:
           ninja -C build -j 16 install
 
       - name: Install extension dependencies
-        id: dependencies
         run: |
           pushd pg_tpch
           cmake -Bbuild
           cmake --build build --target install
 
       - name: Build and test extension
-        id: build
         run: |
           pushd pg_planner
           cmake --preset Coverage
@@ -106,4 +104,12 @@ jobs:
           cat build/Coverage/Testing/Temporary/LastTest.log
           cat build/Coverage/test/regression.diffs
 
-      # coverage
+      - name: Generate coverage file
+        run: grcov . -b build/Coverage -s . -o coverage.info -t lcov  --branch --ignore-not-existing 
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+
