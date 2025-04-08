@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev \
             libssl-dev libxml2-utils xsltproc pkg-config libc++-dev libc++abi-dev libglib2.0-dev libtinfo6 cmake \
-            libstdc++-12-dev g++-14 gcc-14 clang-18 meson wget ninja-build
+            libstdc++-12-dev g++-14 gcc-14 clang-18 meson wget ninja-build grcov
           echo "${PWD}/postgres/inst/bin:$PATH'" > $GITHUB_PATH
 
       - name: ccache
@@ -74,14 +74,12 @@ jobs:
           ninja -C build -j 16 install
 
       - name: Install extension dependencies
-        id: dependencies
         run: |
           pushd pg_tpch
           cmake -Bbuild
           cmake --build build --target install
 
       - name: Build and test extension
-        id: build
         run: |
           pushd pg_planner
           cmake --preset Coverage
@@ -106,4 +104,13 @@ jobs:
           cat build/Coverage/Testing/Temporary/LastTest.log
           cat build/Coverage/test/regression.diffs
 
-      # coverage
+      - name: Generate coverage file
+        run: grcov . -b build/Coverage -s . -o coverage.info -t lcov  --branch --ignore-not-existing 
+
+      - name: Upload coverage reports to Codecov
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+
