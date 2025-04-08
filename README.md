@@ -2,6 +2,7 @@
 
 [![PostgreSQL Version](https://img.shields.io/badge/PostgreSQL-17beta1+-blue.svg)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![codecov](https://codecov.io/gh/askyx/pg_planner/graph/badge.svg?token=X3EZ36DF3V)](https://codecov.io/gh/askyx/pg_planner)
 
 A non-intrusive, cascades framework-based query optimizer extension for PostgreSQL that enhances query planning capabilities while maintaining full compatibility with native PostgreSQL features.
 
